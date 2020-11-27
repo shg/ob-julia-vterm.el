@@ -42,10 +42,10 @@
 (require 'julia-vterm)
 
 (defconst org-babel-julia-vterm-evaluate-statement
-  "using Suppressor; _julia_vterm_output = @capture_out begin; include(\"%s\"); end; open(\"%s\", \"w\") do file; write(file, _julia_vterm_output); end\n")
+  "using Suppressor; output = @capture_out begin; include(\"%s\"); end; open(\"%s\", \"w\") do file; write(file, output); end\n")
 
 (defconst org-babel-julia-vterm-evaluate-statement-to-value
-  "_julia_vterm_output = begin; include(\"%s\"); end; open(\"%s\", \"w\") do file; write(file, _julia_vterm_output); end\n")
+  "output = begin; include(\"%s\"); end; open(\"%s\", \"w\") do file; print(file, output); end\n")
 
 (unless (fboundp 'org-babel-execute:julia)
   (defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm))
@@ -81,10 +81,18 @@ This function is called by `org-babel-execute-src-block'."
        (with-temp-buffer
 	 (insert-file-contents out-file)
 	 (buffer-string)))
-     ;; "the output"
      )
     ('value
-     "the last value")))
+     (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
+	   (out-file (org-babel-temp-file "julia-vterm-out-")))
+       (with-temp-file src-file (insert body))
+       (julia-vterm-paste-string
+	(format org-babel-julia-vterm-evaluate-statement-to-value src-file out-file))
+       (while (= 0 (file-attribute-size (file-attributes out-file)))
+	 (sit-for 0.1))
+       (with-temp-buffer
+	 (insert-file-contents out-file)
+	 (buffer-string))))))
 
 (provide 'ob-julia-vterm)
 
