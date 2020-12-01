@@ -67,8 +67,15 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (let* ((session (cdr (assq :session params)))
 	 (result-params (cdr (assq :result-params params)))
 	 (result-type (cdr (assq :result-type params)))
-	 (full-body (org-babel-expand-body:generic body params)))
+	 (var-lines (org-babel-variable-assignments:julia-vterm params))
+	 (full-body (org-babel-expand-body:generic body params var-lines)))
     (org-babel-julia-vterm-evaluate session full-body result-type result-params)))
+
+(defun org-babel-variable-assignments:julia-vterm (params)
+  "Return list of Julia statements assigning the block's variables."
+  (mapcar
+   (lambda (pair) (format "%s = %s" (car pair) (cdr pair)))
+   (org-babel--get-vars params)))
 
 (defun org-babel-julia-vterm-evaluate (session body result-type result-params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
