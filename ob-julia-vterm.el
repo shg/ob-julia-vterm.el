@@ -29,22 +29,26 @@
 
 ;;; Commentary:
 
-;; 
+;; Org-Babel support for Julia source code block using julia-vterm.
 
 ;;; Usage:
 
-;; 
+;; This package uses julia-vterm to run Julia code.  You also need to
+;; have Suppressor.jl package installed in your Julia environment.
+;;
+;; Install ob-julia-vterm.el manually using package.el
+;;
+;;   (package-install-file "/path-to-download-dir/ob-julia-vterm.el")
+;;
+;; Now you can execute Julia source code blocks in org files.
 
 ;;; Code:
 
 (require 'ob)
-(require 'org-macs)
 (require 'julia-vterm)
 
-(add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
-
-(defun org-babel-julia-vterm--make-src (result-type with-session body)
-  "RESULT-TYPE WITH-SESSION BODY."
+(defun org-babel-julia-vterm--wrap-body (result-type with-session body)
+  "Make Julia code that executes BODY and obtains the results, according to RESULT-TYPE and WITH-SESSION."
   (concat
    (if (eq result-type 'output)
        "_julia_vterm_output = @capture_out " "_julia_vterm_output = ")
@@ -54,7 +58,7 @@
    "\nend\n"))
 
 (defun org-babel-julia-vterm--make-str-to-run (src-file out-file)
-  "SRC-FILE OUT-FILE."
+  "Make Julia code that loads SRC-FILE and saves the result to OUT-FILE."
   (format "using Suppressor; include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n" src-file out-file))
 
 (unless (fboundp 'org-babel-execute:julia)
@@ -72,7 +76,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
     (org-babel-julia-vterm-evaluate session full-body result-type result-params)))
 
 (defun org-babel-variable-assignments:julia-vterm (params)
-  "Return list of Julia statements assigning the block's variables."
+  "Return list of Julia statements assigning variables based on variable-value pairs in PARAMS."
   (mapcar
    (lambda (pair) (format "%s = %s" (car pair) (cdr pair)))
    (org-babel--get-vars params)))
@@ -81,7 +85,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--make-src result-type (not (string= session "none")) body)))
+	(src (org-babel-julia-vterm--wrap-body result-type (not (string= session "none")) body)))
     (with-temp-file src-file (insert src))
     (julia-vterm-paste-string
      (org-babel-julia-vterm--make-str-to-run src-file out-file)
@@ -92,6 +96,9 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(setq c (1+ c))))
     (let ((result (with-temp-buffer (insert-file-contents out-file) (buffer-string))))
       result)))
+
+(with-eval-after-load 'ob-core
+    (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia")))
 
 (provide 'ob-julia-vterm)
 
