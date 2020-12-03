@@ -97,8 +97,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
     (let ((result (with-temp-buffer (insert-file-contents out-file) (buffer-string))))
       result)))
 
-(with-eval-after-load 'ob-core
-    (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia")))
+(add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
 
 (provide 'ob-julia-vterm)
 
