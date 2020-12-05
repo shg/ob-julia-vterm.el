@@ -1,0 +1,75 @@
+# -*- eval: (visual-line-mode 1); org-confirm-babel-evaluate: nil -*-
+#+STARTUP: showall
+
+* ob-julia-vterm
+
+Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm.
+
+** Installation
+
+You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs. Also, to use ~:results output~, Suppressor.jl needs to be installed in Julia environment.
+
+Download ob-julia-vterm.el into somewhere in your local directory and install it with the following.
+
+#+BEGIN_SRC emacs-lisp
+(package-install-file "/path-to-download-dir/ob-julia-vterm.el")
+#+END_SRC
+
+** Usage
+
+- A src code block with ~julia-vterm~ specified as language will be executed in a julia-vterm REPL.
+  - The language name ~julia~ also works unless org-babel support for ~julia~ has not been provided by another package.
+- You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
+- Session-based evaluation is supported.
+  - Without ~:session~, the code block is executed in its own session.
+  - With ~:session~, the code block is executed in ~main~ session.
+  - With ~:session <name>~, the code block is executed in the named session.
+
+*** Examples
+
+#+BEGIN_SRC org
+,#+BEGIN_SRC julia-vterm
+2π
+,#+END_SRC
+
+,#+RESULTS:
+: 6.283185307179586
+#+END_SRC
+
+
+#+BEGIN_src org
+,#+BEGIN_SRC julia-vterm :results output
+println("Hello, Julia!")
+,#+END_SRC
+
+,#+RESULTS:
+: Hello, Julia!
+#+END_src
+
+#+BEGIN_src org
+,#+BEGIN_SRC julia-vterm :results none :session ses1
+x = 12345
+,#+END_SRC
+
+,#+BEGIN_SRC julia-vterm :results none :session ses2
+x = 67890
+,#+END_SRC
+
+,#+BEGIN_SRC julia-vterm :results value :session ses1
+x
+,#+END_SRC
+
+,#+RESULTS:
+: 12345
+#+END_src
+
+#+BEGIN_SRC org
+,#+BEGIN_SRC julia-vterm :results file graphics :file plot.png :output-dir figs
+using Plots
+scatter(rand(100), rand(100))
+savefig("figs/plot.png")
+,#+END_SRC
+
+,#+RESULTS:
+[[file:figs/plot.png]]
+#+END_SRC
