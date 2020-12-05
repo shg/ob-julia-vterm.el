@@ -47,19 +47,28 @@
 (require 'ob)
 (require 'julia-vterm)
 
-(defun org-babel-julia-vterm--wrap-body (result-type with-session body)
-  "Make Julia code that executes BODY and obtains the results, according to RESULT-TYPE and WITH-SESSION."
+(defvar org-babel-julia-vterm-debug nil)
+
+(defun org-babel-julia-vterm--wrap-body (result-type session body)
+  "Make Julia code that execute-s BODY and obtains the results, according to RESULT-TYPE and SESSION."
   (concat
+   "_julia_vterm_output = "
    (if (eq result-type 'output)
-       "_julia_vterm_output = @capture_out " "_julia_vterm_output = ")
-   (if with-session
-       "begin\n" "let\n")
+       (concat "@capture_out begin "
+	       (if session "eval(Meta.parse(raw\"\"\"begin\n" "\n"))
+     (if session "begin\n" "let\n"))
    body
+   (if (and (eq result-type 'output) session)
+       "\nend\"\"\"))")
    "\nend\n"))
 
-(defun org-babel-julia-vterm--make-str-to-run (src-file out-file)
-  "Make Julia code that loads SRC-FILE and saves the result to OUT-FILE."
-  (format "using Suppressor; include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n" src-file out-file))
+(defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
+  "Make Julia code that load-s SRC-FILE and saves the result to OUT-FILE, according to RESULT-TYPE."
+  (format
+   (concat
+    (if (eq result-type 'output) "using Suppressor; ")
+    "include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n")
+   src-file out-file))
 
 (unless (fboundp 'org-babel-execute:julia)
   (defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm))
@@ -68,12 +77,12 @@
   "Execute a block of Julia code with Babel.
 This function is called by `org-babel-execute-src-block'.
 BODY is the contents and PARAMS are header arguments of the code block."
-  (let* ((session (cdr (assq :session params)))
-	 (result-params (cdr (assq :result-params params)))
+  (let* ((session-name (cdr (assq :session params)))
 	 (result-type (cdr (assq :result-type params)))
 	 (var-lines (org-babel-variable-assignments:julia-vterm params))
-	 (full-body (org-babel-expand-body:generic body params var-lines)))
-    (org-babel-julia-vterm-evaluate session full-body result-type result-params)))
+	 (full-body (org-babel-expand-body:generic body params var-lines))
+	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name))))
+    (org-babel-julia-vterm-evaluate session full-body result-type params)))
 
 (defun org-babel-variable-assignments:julia-vterm (params)
   "Return list of Julia statements assigning variables based on variable-value pairs in PARAMS."
@@ -81,15 +90,19 @@ BODY is the contents and PARAMS are header arguments of the code block."
    (lambda (pair) (format "%s = %s" (car pair) (cdr pair)))
    (org-babel--get-vars params)))
 
-(defun org-babel-julia-vterm-evaluate (session body result-type result-params)
+(defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type (not (string= session "none")) body)))
+	(src (org-babel-julia-vterm--wrap-body result-type session body)))
     (with-temp-file src-file (insert src))
+    (when org-babel-julia-vterm-debug
+      (julia-vterm-paste-string
+       (format "#= params ======\n%s\n== src =========\n%s===============#\n" params src)
+       session))
     (julia-vterm-paste-string
-     (org-babel-julia-vterm--make-str-to-run src-file out-file)
-     (if (string= session "none") nil session))
+     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+     session)
     (let ((c 0))
       (while (and (< c 50) (= 0 (file-attribute-size (file-attributes out-file))))
 	(sit-for 0.1)
