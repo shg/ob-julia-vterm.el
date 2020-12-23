@@ -3,7 +3,7 @@
 
 * ob-julia-vterm
 
-Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm.
+Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm. This package is under development and only limited functionalities have been implemented yet.
 
 ** Installation
 
@@ -24,6 +24,7 @@ Download ob-julia-vterm.el into somewhere in your local directory and install it
   - Without ~:session~, the code block is executed in its own session.
   - With ~:session~, the code block is executed in ~main~ session.
   - With ~:session <name>~, the code block is executed in the named session.
+  - Unlike most other ob-* packages, the buffer name for the Julia session will be automatically formatted as ~*julia:<name>*~. So, you can just specify the pure name, such as ~main~ or ~ses1~, for the session name.
 
 *** Examples
 
