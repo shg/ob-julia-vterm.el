@@ -104,7 +104,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
      (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
      session)
     (let ((c 0))
-      (while (and (< c 50) (= 0 (file-attribute-size (file-attributes out-file))))
+      (while (and (< c 100) (= 0 (file-attribute-size (file-attributes out-file))))
 	(sit-for 0.1)
 	(setq c (1+ c))))
     (let ((result (with-temp-buffer (insert-file-contents out-file) (buffer-string))))
