@@ -107,8 +107,15 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (while (and (< c 100) (= 0 (file-attribute-size (file-attributes out-file))))
 	(sit-for 0.1)
 	(setq c (1+ c))))
-    (let ((result (with-temp-buffer (insert-file-contents out-file) (buffer-string))))
-      result)))
+    (with-temp-buffer
+      (insert-file-contents out-file)
+      (let ((bs (buffer-string)))
+	(if (catch 'loop
+	      (dolist (line (split-string bs "\n"))
+		(if (> (length line) 12000)
+		    (throw 'loop t))))
+	    "Output suppressed (line too long)"
+	  bs)))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
 
