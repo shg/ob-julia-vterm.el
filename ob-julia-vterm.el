@@ -63,7 +63,7 @@
    "\nend\n"))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
-  "Make Julia code that load-s SRC-FILE and saves the result to OUT-FILE, according to RESULT-TYPE."
+  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, according to RESULT-TYPE."
   (format
    (concat
     (if (eq result-type 'output) "using Suppressor; ")
