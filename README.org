@@ -3,16 +3,24 @@
 
 * ob-julia-vterm
 
-Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm. This package is under development and only limited functionalities have been implemented yet.
+Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm.
 
 ** Installation
 
-You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs. Also, to use ~:results output~, Suppressor.jl needs to be installed in Julia environment.
+You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs. Also, to use ~:results output~, [[https://github.com/JuliaIO/Suppressor.jl][Suppressor.jl]] needs to be installed in Julia environment.
 
 Download ob-julia-vterm.el into somewhere in your local directory and install it with the following.
 
 #+BEGIN_SRC emacs-lisp
 (package-install-file "/path-to-download-dir/ob-julia-vterm.el")
+#+END_SRC
+
+You need to enable julia-vterm code block evaluation by customizing org-babel-load-languages or by adding the following lines to your init file.
+
+#+BEGIN_SRC emacs-lisp
+(require 'org)
+(add-to-list 'org-babel-load-languages '(julia-vterm . t))
+(org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages)
 #+END_SRC
 
 ** Usage
@@ -25,11 +33,14 @@ Download ob-julia-vterm.el into somewhere in your local directory and install it
   - With ~:session~, the code block is executed in ~main~ session.
   - With ~:session <name>~, the code block is executed in the named session.
   - Unlike most other ob-* packages, the buffer name for the Julia session will be automatically formatted as ~*julia:<name>*~. So, you can just specify the pure name, such as ~main~ or ~ses1~, for the session name.
+- Passing code block arguments using ~:var~ is supported.
+  - Currently, only a number or a string can be passed.
+  - Another code block or a result of a code block can be referred to and used as the argument.
 
 *** Examples
 
 #+BEGIN_SRC org
-,#+BEGIN_SRC julia-vterm
+,#+BEGIN_SRC julia
 2π
 ,#+END_SRC
 
@@ -38,34 +49,48 @@ Download ob-julia-vterm.el into somewhere in your local directory and install it
 #+END_SRC
 
 
-#+BEGIN_src org
-,#+BEGIN_SRC julia-vterm :results output
+#+BEGIN_SRC org
+,#+BEGIN_SRC julia :results output
 println("Hello, Julia!")
 ,#+END_SRC
 
 ,#+RESULTS:
 : Hello, Julia!
-#+END_src
+#+END_SRC
 
-#+BEGIN_src org
-,#+BEGIN_SRC julia-vterm :results none :session ses1
+#+BEGIN_SRC org
+,#+BEGIN_SRC julia :results none :session ses1
 x = 12345
 ,#+END_SRC
 
-,#+BEGIN_SRC julia-vterm :results none :session ses2
+,#+BEGIN_SRC julia :results none :session ses2
 x = 67890
 ,#+END_SRC
 
-,#+BEGIN_SRC julia-vterm :results value :session ses1
+,#+BEGIN_SRC julia :results value :session ses1
 x
 ,#+END_SRC
 
 ,#+RESULTS:
 : 12345
-#+END_src
+#+END_SRC
 
 #+BEGIN_SRC org
-,#+BEGIN_SRC julia-vterm :results file graphics :file plot.png :output-dir figs
+,#+NAME: radius
+,#+BEGIN_SRC julia :results value
+12.345
+,#+END_SRC
+
+,#+BEGIN_SRC julia :results value :var r = radius
+"The area of the circle with radius of $r is $(π * r ^ 2)."
+,#+END_SRC
+
+,#+RESULTS:
+: The area of the circle with radius of 12.345 is 478.7756573542473.
+#+END_SRC
+
+#+BEGIN_SRC org
+,#+BEGIN_SRC julia :results file graphics :file plot.png :output-dir figs
 using Plots
 scatter(rand(100), rand(100))
 savefig("figs/plot.png")
