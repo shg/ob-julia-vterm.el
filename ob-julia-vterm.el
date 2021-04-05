@@ -50,7 +50,7 @@
 (defvar org-babel-julia-vterm-debug nil)
 
 (defun org-babel-julia-vterm--wrap-body (result-type session body)
-  "Make Julia code that execute-s BODY and obtains the results, according to RESULT-TYPE and SESSION."
+  "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
   (concat
    "_julia_vterm_output = "
    (if (eq result-type 'output)
@@ -63,7 +63,7 @@
    "\nend\n"))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
-  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, according to RESULT-TYPE."
+  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
   (format
    (concat
     (if (eq result-type 'output) "using Suppressor; ")
