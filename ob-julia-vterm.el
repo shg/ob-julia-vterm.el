@@ -7,7 +7,7 @@
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
 ;; Package-Requires: ((emacs "26.1") (julia-vterm "0.10"))
-;; Version: 0.1
+;; Version: 0.2
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -31,16 +31,17 @@
 
 ;; Org-Babel support for Julia source code block using julia-vterm.
 
-;;; Usage:
+;;; Requirements:
 
 ;; This package uses julia-vterm to run Julia code.  You also need to
-;; have Suppressor.jl package installed in your Julia environment.
+;; have Suppressor.jl package installed in your Julia environment to
+;; use :results output.
 ;;
-;; Install ob-julia-vterm.el manually using package.el
+;; - https://github.com/shg/julia-vterm.el
+;; - https://github.com/JuliaIO/Suppressor.jl
 ;;
-;;   (package-install-file "/path-to-download-dir/ob-julia-vterm.el")
-;;
-;; Now you can execute Julia source code blocks in org files.
+;; See https://github.com/shg/ob-julia-vterm.el for installation
+;; instructions.
 
 ;;; Code:
 
@@ -69,9 +70,6 @@
     (if (eq result-type 'output) "using Suppressor; ")
     "include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n")
    src-file out-file))
-
-(unless (fboundp 'org-babel-execute:julia)
-  (defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
