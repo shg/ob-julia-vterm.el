@@ -23,10 +23,15 @@ You need to enable julia-vterm code block evaluation by customizing org-babel-lo
 (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages)
 #+END_SRC
 
+You can enable ~julia~ to be used as the language name in addition to ~julia-vterm~ with the following line.
+
+#+BEGIN_SRC emacs-lisp
+(defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm)
+#+END_SRC
+
 ** Usage
 
-- A src code block with ~julia-vterm~ specified as language will be executed in a julia-vterm REPL.
-  - The language name ~julia~ also works unless org-babel support for ~julia~ has not been provided by another package.
+- A src code block with ~julia-vterm~ (or ~julia~ if you define the above alias) specified as language will be executed in a julia-vterm REPL.
 - You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
 - Session-based evaluation is supported.
   - Without ~:session~, the code block is executed in its own session.
