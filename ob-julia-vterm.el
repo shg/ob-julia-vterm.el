@@ -1,4 +1,4 @@
-;;; ob-julia-vterm.el --- Babel Fucntions for Julia in VTerm -*- lexical-binding: t -*-
+;;; ob-julia-vterm.el --- Babel Functions for Julia in VTerm -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020 Shigeaki Nishina
 
