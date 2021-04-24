@@ -1,6 +1,8 @@
 # -*- eval: (visual-line-mode 1); org-confirm-babel-evaluate: nil -*-
 #+STARTUP: showall
 
+[[https://melpa.org/#/ob-julia-vterm][file:https://melpa.org/packages/ob-julia-vterm-badge.svg]]
+
 * ob-julia-vterm
 
 Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm.
@@ -9,7 +11,7 @@ Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vter
 
 You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs. Also, to use ~:results output~, [[https://github.com/JuliaIO/Suppressor.jl][Suppressor.jl]] needs to be installed in Julia environment.
 
-Download ob-julia-vterm.el into somewhere in your local directory and install it with the following.
+You can install ob-julia-vterm from MELPA. If you want to install it manually, download ob-julia-vterm.el into somewhere in your local directory and install it with the following.
 
 #+BEGIN_SRC emacs-lisp
 (package-install-file "/path-to-download-dir/ob-julia-vterm.el")
@@ -23,7 +25,7 @@ You need to enable julia-vterm code block evaluation by customizing org-babel-lo
 (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages)
 #+END_SRC
 
-You can enable ~julia~ to be used as the language name in addition to ~julia-vterm~ with the following line.
+By default, you need to specify ~julia-vterm~ as the language name for source blocks. To use ~julia~ as the language name, define the following alias.
 
 #+BEGIN_SRC emacs-lisp
 (defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm)
