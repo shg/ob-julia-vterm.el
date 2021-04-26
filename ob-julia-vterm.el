@@ -46,12 +46,6 @@
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
-(defun org-babel-julia-vterm--wrap-body (result-type session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
-  (concat
-   "try; "
-   body
-   "\ncatch var\"#error#\"; Base.display_error(stdout, var\"#error#\", Base.catch_backtrace()) end"))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
   "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
@@ -64,7 +58,11 @@ begin
         logger = Base.SimpleLogger(io)
         redirect_stdout(io) do
             Logging.with_logger(logger) do
-                result = include(\"%s\")   
+                result = try
+                    include(\"%s\")
+                catch err;
+                    Base.display_error(stdout, err, Base.catch_backtrace())
+                end
                 result === nothing || show(IOContext(stdout, :limit => true, :module => Main), \"text/plain\", result)
             end  
         end
@@ -89,12 +87,11 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (mapcar
    (lambda (pair) (format "%s = %s" (car pair) (cdr pair)))
    (org-babel--get-vars params)))
-
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type session body)))
+	(src body))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
