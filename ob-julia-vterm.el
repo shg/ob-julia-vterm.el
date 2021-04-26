@@ -33,13 +33,10 @@
 
 ;;; Requirements:
 
-;; This package uses julia-vterm to run Julia code.  You also need to
-;; have Suppressor.jl package installed in your Julia environment to
-;; use :results output.
+;; This package uses julia-vterm to run Julia code.
 ;;
 ;; - https://github.com/shg/julia-vterm.el
-;; - https://github.com/JuliaIO/Suppressor.jl
-;;
+
 ;; See https://github.com/shg/ob-julia-vterm.el for installation
 ;; instructions.
 
@@ -49,27 +46,32 @@
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
-
 (defun org-babel-julia-vterm--wrap-body (result-type session body)
   "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
   (concat
-   "_julia_vterm_output = "
-   (if (eq result-type 'output)
-       (concat "@capture_out begin "
-	       (if session "eval(Meta.parse(raw\"\"\"begin\n" "\n"))
-     (if session "begin\n" "let\n"))
+   "try; "
    body
-   (if (and (eq result-type 'output) session)
-       "\nend\"\"\"))")
-   "\nend\n"))
+   "\ncatch var\"#error#\"; Base.display_error(stdout, var\"#error#\", Base.catch_backtrace()) end"))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
   "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
   (format
    (concat
-    (if (eq result-type 'output) "using Suppressor; ")
-    "include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n")
-   src-file out-file))
+    "\
+begin
+    using Logging: Logging; var\"#out_file#\" = \"%s\"; 
+    open(var\"#out_file#\", \"w+\") do io
+        logger = Base.SimpleLogger(io)
+        redirect_stdout(io) do
+            Logging.with_logger(logger) do
+                result = include(\"%s\")   
+                result === nothing || show(IOContext(stdout, :limit => true, :module => Main), \"text/plain\", result)
+            end  
+        end
+    end
+    open(io -> println(read(io, String)), var\"#out_file#\") 
+end\n")
+   out-file src-file))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
