@@ -9,7 +9,7 @@ Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vter
 
 ** Installation
 
-You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs. Also, to use ~:results output~, [[https://github.com/JuliaIO/Suppressor.jl][Suppressor.jl]] needs to be installed in Julia environment.
+You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs.
 
 You can install ob-julia-vterm from MELPA. If you want to install it manually, download ob-julia-vterm.el into somewhere in your local directory and install it with the following.
 
@@ -34,7 +34,6 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 ** Usage
 
 - A src code block with ~julia-vterm~ (or ~julia~ if you define the above alias) specified as language will be executed in a julia-vterm REPL.
-- You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
 - Session-based evaluation is supported.
   - Without ~:session~, the code block is executed in its own session.
   - With ~:session~, the code block is executed in ~main~ session.
@@ -57,7 +56,7 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 
 
 #+BEGIN_SRC org
-,#+BEGIN_SRC julia :results output
+,#+BEGIN_SRC julia
 println("Hello, Julia!")
 ,#+END_SRC
 
@@ -74,7 +73,7 @@ x = 12345
 x = 67890
 ,#+END_SRC
 
-,#+BEGIN_SRC julia :results value :session ses1
+,#+BEGIN_SRC julia :session ses1
 x
 ,#+END_SRC
 
@@ -84,16 +83,19 @@ x
 
 #+BEGIN_SRC org
 ,#+NAME: radius
-,#+BEGIN_SRC julia :results value
+,#+BEGIN_SRC julia 
 12.345
 ,#+END_SRC
 
-,#+BEGIN_SRC julia :results value :var r = radius
+,#+RESULTS: radius
+: 12.345
+
+,#+BEGIN_SRC julia :var r = radius
 "The area of the circle with radius of $r is $(π * r ^ 2)."
 ,#+END_SRC
 
 ,#+RESULTS:
-: The area of the circle with radius of 12.345 is 478.7756573542473.
+: "The area of the circle with radius of 12.345 is 478.7756573542473."
 #+END_SRC
 
 #+BEGIN_SRC org
