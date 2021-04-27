@@ -9,7 +9,7 @@ Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vter
 
 ** Installation
 
-You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs. Also, to use ~:results output~, [[https://github.com/JuliaIO/Suppressor.jl][Suppressor.jl]] needs to be installed in Julia environment.
+You need to have [[https://github.com/shg/julia-vterm.el][julia-vterm]] installed in Emacs.
 
 You can install ob-julia-vterm from MELPA. If you want to install it manually, download ob-julia-vterm.el into somewhere in your local directory and install it with the following.
 
