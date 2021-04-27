@@ -36,7 +36,7 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 - A src code block with ~julia-vterm~ (or ~julia~ if you define the above alias) specified as language will be executed in a julia-vterm REPL.
 - You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
 - Session-based evaluation is supported.
-  - Without ~:session~, the code block is executed in its own session.
+  - Without ~:session~, the code block is executed inside a `let` block.
   - With ~:session~, the code block is executed in ~main~ session.
   - With ~:session <name>~, the code block is executed in the named session.
   - Unlike most other ob-* packages, the buffer name for the Julia session will be automatically formatted as ~*julia:<name>*~. So, you can just specify the pure name, such as ~main~ or ~ses1~, for the session name.
