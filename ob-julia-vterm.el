@@ -49,27 +49,37 @@
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
-
 (defun org-babel-julia-vterm--wrap-body (result-type session body)
   "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
   (concat
-   "_julia_vterm_output = "
-   (if (eq result-type 'output)
-       (concat "@capture_out begin "
-	       (if session "eval(Meta.parse(raw\"\"\"begin\n" "\n"))
-     (if session "begin\n" "let\n"))
+   (if session "" "let\n")
    body
-   (if (and (eq result-type 'output) session)
-       "\nend\"\"\"))")
-   "\nend\n"))
+   (if session "" "end\n")))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
   "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
   (format
-   (concat
-    (if (eq result-type 'output) "using Suppressor; ")
-    "include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n")
-   src-file out-file))
+   (cond ((eq result-type 'output) "\
+using Logging: Logging; let
+    out_file = \"%s\"
+    result = open(out_file, \"w\") do io
+        logger = Base.SimpleLogger(io)
+        redirect_stdout(io) do
+            Logging.with_logger(logger) do
+                include(\"%s\") 
+            end
+        end
+    end
+    open(io -> println(read(io, String)), out_file)
+    result
+end\n")
+	 ((eq result-type 'value) "\
+open(\"%s\", \"w\") do io
+    result = include(\"%s\")
+    print(io, result)
+    result
+end\n"))
+   out-file src-file))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
