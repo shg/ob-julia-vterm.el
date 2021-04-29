@@ -7,7 +7,7 @@
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
 ;; Package-Requires: ((emacs "26.1") (julia-vterm "0.10"))
-;; Version: 0.2
+;; Version: 0.3
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -33,12 +33,9 @@
 
 ;;; Requirements:
 
-;; This package uses julia-vterm to run Julia code.  You also need to
-;; have Suppressor.jl package installed in your Julia environment to
-;; use :results output.
+;; This package uses julia-vterm to run Julia code.
 ;;
 ;; - https://github.com/shg/julia-vterm.el
-;; - https://github.com/JuliaIO/Suppressor.jl
 ;;
 ;; See https://github.com/shg/ob-julia-vterm.el for installation
 ;; instructions.
@@ -49,37 +46,30 @@
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
-(defun org-babel-julia-vterm--wrap-body (result-type session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
-  (concat
-   (if session "" "let\n")
-   body
-   (if session "" "end\n")))
 
-(defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
-  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
-  (format
-   (cond ((eq result-type 'output) "\
-using Logging: Logging; let
-    out_file = \"%s\"
-    result = open(out_file, \"w\") do io
-        logger = Base.SimpleLogger(io)
-        redirect_stdout(io) do
-            Logging.with_logger(logger) do
-                include(\"%s\") 
-            end
-        end
-    end
-    open(io -> println(read(io, String)), out_file)
-    result
-end\n")
-	 ((eq result-type 'value) "\
-open(\"%s\", \"w\") do io
-    result = include(\"%s\")
-    print(io, result)
-    result
-end\n"))
-   out-file src-file))
+(defun org-babel-julia-vterm--wrap-body (result-type verbose session out-file body)
+  "Return Julia code that execute-s BODY and save-s the results in OUT-FILE according to RESULT-TYPE, VERBOSE, and SESSION."
+  (format (concat
+	   (if verbose "using Logging: Logging;" "")
+	   "_julia_vterm_outfile = open(\"%s\", \"w\");"
+	   (if (eq result-type 'output)
+	       "_julia_vterm_stdout = stdout; redirect_stdout(_julia_vterm_outfile);" "")
+	   (if verbose
+	       "_julia_vterm_stderr = stderr; redirect_stderr(_julia_vterm_outfile); _julia_vterm_logger = Logging.global_logger(); Logging.global_logger(Logging.ConsoleLogger(_julia_vterm_outfile, Logging.Debug));" "")
+	   "_julia_vterm_value = " (if session "begin" "let") "
+%s
+end;"
+	   (if verbose
+	       "Logging.global_logger(_julia_vterm_logger); redirect_stderr(_julia_vterm_stderr)
+" "")
+	   (if (eq result-type 'value) "print(_julia_vterm_outfile, _julia_vterm_value);" "")
+	   (if (eq result-type 'output) "redirect_stdout(_julia_vterm_stdout);" "")
+	   "close(_julia_vterm_outfile)")
+	  out-file body))
+
+(defun org-babel-julia-vterm--make-str-to-run (src-file)
+  "Return Julia code that load-s SRC-FILE."
+  (format "include(\"%s\")\n" src-file))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
@@ -100,16 +90,17 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
-  (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
-	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type session body)))
+  (let* ((src-file (org-babel-temp-file "julia-vterm-src-"))
+	 (out-file (org-babel-temp-file "julia-vterm-out-"))
+	 (verbose (member "verbose" (cdr (assq :result-params params))))
+	 (src (org-babel-julia-vterm--wrap-body result-type verbose session out-file body)))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
        (format "#= params ======\n%s\n== src =========\n%s===============#\n" params src)
        session))
     (julia-vterm-paste-string
-     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+     (org-babel-julia-vterm--make-str-to-run src-file)
      session)
     (let ((c 0))
       (while (and (< c 100) (= 0 (file-attribute-size (file-attributes out-file))))
