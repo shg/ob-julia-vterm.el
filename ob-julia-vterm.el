@@ -50,20 +50,26 @@
 (defun org-babel-julia-vterm--wrap-body (result-type verbose session out-file body)
   "Return Julia code that execute-s BODY and save-s the results in OUT-FILE according to RESULT-TYPE, VERBOSE, and SESSION."
   (format (concat
-	   (if verbose "using Logging: Logging;" "")
+	   (if verbose
+	       "using Logging: Logging;" "")
 	   "_julia_vterm_outfile = open(\"%s\", \"w\");"
 	   (if (eq result-type 'output)
-	       "_julia_vterm_stdout = stdout; redirect_stdout(_julia_vterm_outfile);" "")
+	       "_julia_vterm_stdout = stdout;redirect_stdout(_julia_vterm_outfile);" "")
+	   (if (and (eq result-type 'output) verbose)
+	       "_julia_vterm_stderr = stderr;redirect_stderr(_julia_vterm_outfile);" "")
 	   (if verbose
-	       "_julia_vterm_stderr = stderr; redirect_stderr(_julia_vterm_outfile); _julia_vterm_logger = Logging.global_logger(); Logging.global_logger(Logging.ConsoleLogger(_julia_vterm_outfile, Logging.Debug));" "")
+	       "_julia_vterm_logger = Logging.global_logger();Logging.global_logger(Logging.ConsoleLogger(_julia_vterm_outfile, Logging.Debug));" "")
 	   "_julia_vterm_value = " (if session "begin" "let") "
 %s
 end;"
 	   (if verbose
-	       "Logging.global_logger(_julia_vterm_logger); redirect_stderr(_julia_vterm_stderr)
-" "")
-	   (if (eq result-type 'value) "print(_julia_vterm_outfile, _julia_vterm_value);" "")
-	   (if (eq result-type 'output) "redirect_stdout(_julia_vterm_stdout);" "")
+	       "Logging.global_logger(_julia_vterm_logger);" "")
+	   (if (eq result-type 'value)
+	       "print(_julia_vterm_outfile, _julia_vterm_value);" "")
+	   (if (eq result-type 'output)
+	       "redirect_stdout(_julia_vterm_stdout);" "")
+	   (if (and (eq result-type 'output) verbose)
+	       "redirect_stderr(_julia_vterm_stderr);" "")
 	   "close(_julia_vterm_outfile)")
 	  out-file body))
 
