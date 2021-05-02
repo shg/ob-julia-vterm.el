@@ -67,7 +67,7 @@ using Logging: Logging; let
         logger = Base.SimpleLogger(io)
         redirect_stdout(io) do
             Logging.with_logger(logger) do
-                include(\"%s\") 
+                include(\"%s\")
             end
         end
     end
