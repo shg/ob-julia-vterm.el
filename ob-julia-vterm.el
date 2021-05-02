@@ -33,12 +33,9 @@
 
 ;;; Requirements:
 
-;; This package uses julia-vterm to run Julia code.  You also need to
-;; have Suppressor.jl package installed in your Julia environment to
-;; use :results output.
+;; This package uses julia-vterm to run Julia code.
 ;;
 ;; - https://github.com/shg/julia-vterm.el
-;; - https://github.com/JuliaIO/Suppressor.jl
 ;;
 ;; See https://github.com/shg/ob-julia-vterm.el for installation
 ;; instructions.
@@ -50,30 +47,44 @@
 
 (defvar org-babel-julia-vterm-debug nil)
 
-(defun org-babel-julia-vterm--wrap-body (result-type session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
+(defun org-babel-julia-vterm--wrap-body (session body)
+  "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
   (concat
    (if session "" "let\n")
    body
    (if session "" "\nend\n")))
 
-(defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
-  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
+(defun org-babel-julia-vterm--make-str-to-run (result-type verbose src-file out-file)
+  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE and VERBOSE."
   (format
-   (cond ((eq result-type 'output) "\
+   (cond ((eq result-type 'output)
+	  (cond (verbose "\
 using Logging: Logging; let
     out_file = \"%s\"
     result = open(out_file, \"w\") do io
         logger = Base.SimpleLogger(io)
         redirect_stdout(io) do
-            Logging.with_logger(logger) do
-                include(\"%s\")
+            redirect_stderr(io) do
+                Logging.with_logger(logger) do
+                    include(\"%s\")
+                end
             end
         end
     end
     open(io -> println(read(io, String)), out_file)
     result
 end\n")
+		(t "\
+let
+    out_file = \"%s\"
+    result = open(out_file, \"w\") do io
+        redirect_stdout(io) do
+             include(\"%s\")
+        end
+    end
+    open(io -> println(read(io, String)), out_file)
+    result
+end\n")))
 	 ((eq result-type 'value) "\
 open(\"%s\", \"w\") do io
     result = include(\"%s\")
@@ -103,14 +114,15 @@ BODY is the contents and PARAMS are header arguments of the code block."
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type session body)))
+	(verbose (member "verbose" (cdr (assq :result-params params))))
+	(src (org-babel-julia-vterm--wrap-body session body)))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
        (format "#= params ======\n%s\n== src =========\n%s===============#\n" params src)
        session))
     (julia-vterm-paste-string
-     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+     (org-babel-julia-vterm--make-str-to-run result-type verbose src-file out-file)
      session)
     (let ((c 0))
       (while (and (< c 100) (= 0 (file-attribute-size (file-attributes out-file))))
