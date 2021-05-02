@@ -49,12 +49,13 @@
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
+
 (defun org-babel-julia-vterm--wrap-body (result-type session body)
   "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
   (concat
    (if session "" "let\n")
    body
-   (if session "" "end\n")))
+   (if session "" "\nend\n")))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
   "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
