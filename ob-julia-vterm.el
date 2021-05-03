@@ -62,7 +62,7 @@
 using Logging: Logging; let
     out_file = \"%s\"
     result = open(out_file, \"w\") do io
-        logger = Base.SimpleLogger(io)
+        logger = Logging.ConsoleLogger(io)
         redirect_stdout(io) do
             redirect_stderr(io) do
                 Logging.with_logger(logger) do
