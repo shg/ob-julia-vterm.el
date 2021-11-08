@@ -2,6 +2,7 @@
 #+STARTUP: showall
 
 [[https://melpa.org/#/ob-julia-vterm][file:https://melpa.org/packages/ob-julia-vterm-badge.svg]]
+[[https://stable.melpa.org/#/ob-julia-vterm][file:https://stable.melpa.org/packages/ob-julia-vterm-badge.svg]]
 
 * ob-julia-vterm
 
