@@ -88,6 +88,15 @@ BODY is the contents and PARAMS are header arguments of the code block."
    (lambda (pair) (format "%s = %s" (car pair) (cdr pair)))
    (org-babel--get-vars params)))
 
+(defun org-babel-julia-vterm--wait-for-output (file &optional timeout)
+  "Wait until the FILE is written or TIMEOUT seconds have elapsed."
+  (let ((c 0)
+	(timeout (or timeout 10))
+	(interval 0.1))
+    (while (and (< c (/ timeout interval)) (= 0 (file-attribute-size (file-attributes file))))
+      (sit-for interval)
+      (setq c (1+ c)))))
+
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
@@ -101,10 +110,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
     (julia-vterm-paste-string
      (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
      session)
-    (let ((c 0))
-      (while (and (< c 100) (= 0 (file-attribute-size (file-attributes out-file))))
-	(sit-for 0.1)
-	(setq c (1+ c))))
+    (org-babel-julia-vterm--wait-for-output out-file 10)
     (with-temp-buffer
       (insert-file-contents out-file)
       (let ((bs (buffer-string)))
