@@ -108,7 +108,8 @@ BODY is the contents and PARAMS are header arguments of the code block."
 (defvar-local org-babel-julia-vterm--evaluation-queue nil)
 (defvar-local org-babel-julia-vterm--evaluation-watches nil)
 
-(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (uuid session result-type params src-file out-file buf srcfrom srcto)
+(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue
+    (uuid session result-type params src-file out-file buf srcfrom srcto)
   (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
       (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
   (queue-append org-babel-julia-vterm--evaluation-queue
@@ -118,7 +119,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (lambda (event)
     (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
       (let ((uuid        (nth 0 current))
-	    (result-type (nth 2 current))
 	    (params      (nth 3 current))
 	    (out-file    (nth 5 current))
 	    (buf         (nth 6 current))
@@ -132,16 +132,20 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			    (insert-file-contents out-file)
 			    (buffer-string)))
 		      (result-params (cdr (assq :result-params params))))
-		  (unless (member "file" result-params)
-		    (message "params = %s" params)
-		    (if (org-babel-julia-vterm--check-long-line bs)
-			"Output suppressed (line too long)"
-		      (goto-char srcfrom)
-		      (org-babel-insert-result bs '("replace"))
-		      (queue-dequeue org-babel-julia-vterm--evaluation-queue)
-		      (delete (assoc uuid org-babel-julia-vterm--evaluation-watches) org-babel-julia-vterm--evaluation-watches)
-		      (sit-for 0.1)
-		      (org-babel-julia-vterm--process-evaluation-queue)))))))))))
+		  (cond ((member "file" result-params)
+			 (org-redisplay-inline-images))
+			(t
+			 (if (org-babel-julia-vterm--check-long-line bs)
+			     "Output suppressed (line too long)"
+			   (goto-char srcfrom)
+			   (org-babel-insert-result bs '("replace"))
+			   )))
+		  (queue-dequeue org-babel-julia-vterm--evaluation-queue)
+		  (setq org-babel-julia-vterm--evaluation-watches
+			(delete (assoc uuid org-babel-julia-vterm--evaluation-watches)
+				org-babel-julia-vterm--evaluation-watches))
+		  (sit-for 0.1)
+		  (org-babel-julia-vterm--process-evaluation-queue)))))))))
 
 (defun org-babel-julia-vterm--process-evaluation-queue ()
   (when (and (queue-p org-babel-julia-vterm--evaluation-queue)
@@ -150,7 +154,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (let ((uuid        (nth 0 current))
 	    (session     (nth 1 current))
 	    (result-type (nth 2 current))
-	    (params      (nth 3 current))
 	    (src-file    (nth 4 current))
 	    (out-file    (nth 5 current)))
 	(unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
