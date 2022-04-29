@@ -33,12 +33,9 @@
 
 ;;; Requirements:
 
-;; This package uses julia-vterm to run Julia code.  You also need to
-;; have Suppressor.jl package installed in your Julia environment to
-;; use :results output.
+;; This package uses julia-vterm to run Julia code.
 ;;
 ;; - https://github.com/shg/julia-vterm.el
-;; - https://github.com/JuliaIO/Suppressor.jl
 ;;
 ;; See https://github.com/shg/ob-julia-vterm.el for installation
 ;; instructions.
@@ -52,26 +49,52 @@
 
 (defvar org-babel-julia-vterm-debug nil)
 
-(defun org-babel-julia-vterm--wrap-body (result-type session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
+(defun org-babel-julia-vterm--wrap-body (session body)
+  "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
   (concat
-   "_julia_vterm_output = "
-   (if (eq result-type 'output)
-       (concat "@capture_out begin "
-	       (if session "eval(Meta.parse(raw\"\"\"begin\n" "\n"))
-     (if session "begin\n" "let\n"))
+   (if session "" "let\n")
    body
-   (if (and (eq result-type 'output) session)
-       "\nend\"\"\"))")
-   "\nend\n"))
+   (if session "" "\nend\n")))
 
-(defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
-  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
+(defun org-babel-julia-vterm--make-str-to-run (result-type verbose src-file out-file)
+  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE and VERBOSE."
+  (message "verbose = %s" verbose)
   (format
-   (concat
-    (if (eq result-type 'output) "using Suppressor; ")
-    "include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n")
-   src-file out-file))
+   (cond ((eq result-type 'output)
+	  (cond (verbose "\
+using Logging: Logging; let
+    out_file = \"%s\"
+    result = open(out_file, \"w\") do io
+        logger = Logging.ConsoleLogger(io)
+        redirect_stdout(io) do
+            redirect_stderr(io) do
+                Logging.with_logger(logger) do
+                    include(\"%s\")
+                end
+            end
+        end
+    end
+    open(io -> println(read(io, String)), out_file)
+    result
+end\n")
+		(t "\
+let
+    out_file = \"%s\"
+    result = open(out_file, \"w\") do io
+        redirect_stdout(io) do
+             include(\"%s\")
+        end
+    end
+    open(io -> println(read(io, String)), out_file)
+    result
+end\n")))
+	 ((eq result-type 'value) "\
+open(\"%s\", \"w\") do io
+    result = include(\"%s\")
+    print(io, result)
+    result
+end\n"))
+   out-file src-file))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
@@ -157,21 +180,24 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	    (session     (nth 1 current))
 	    (result-type (nth 2 current))
 	    (src-file    (nth 4 current))
-	    (out-file    (nth 5 current)))
+	    (out-file    (nth 5 current))
+	    (verbose     (member "verbose" (nth 3 current))))
+	(message "cur 3 = %s" (nth 3 current))
 	(unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
 	  (let ((desc (file-notify-add-watch
 		       out-file '(change)
 		       (org-babel-julia-vterm--evaluation-completed-callback-func))))
 	    (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
 	  (julia-vterm-paste-string
-	   (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+	   (org-babel-julia-vterm--make-str-to-run result-type verbose src-file out-file)
 	   session))))))
 
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type session body))
+	(verbose (member "verbose" (cdr (assq :result-params params))))
+	(src (org-babel-julia-vterm--wrap-body session body))
 	(elm (org-element-context))
 	(uuid (org-id-uuid)))
     (message "from %s, to %s" (org-element-property :begin elm) (org-element-property :end elm))
