@@ -46,6 +46,8 @@
 ;;; Code:
 
 (require 'ob)
+(require 'queue)
+(require 'filenotify)
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
@@ -97,29 +99,84 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (sit-for interval)
       (setq c (1+ c)))))
 
+(defun org-babel-julia-vterm--check-long-line (str)
+  (catch 'loop
+    (dolist (line (split-string str "\n"))
+      (if (> (length line) 12000)
+	  (throw 'loop t)))))
+
+(defvar-local org-babel-julia-vterm--evaluation-queue nil)
+(defvar-local org-babel-julia-vterm--evaluation-watches nil)
+
+(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (uuid session result-type params src-file out-file buf srcfrom srcto)
+  (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
+      (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
+  (queue-append org-babel-julia-vterm--evaluation-queue
+		(list uuid session result-type params src-file out-file buf srcfrom srcto)))
+
+(defun org-babel-julia-vterm--evaluation-completed-callback-func ()
+  (lambda (event)
+    (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
+      (let ((uuid     (nth 0 current))
+	    (out-file (nth 5 current))
+	    (buf      (nth 6 current))
+	    (srcfrom  (nth 7 current))
+	    (srcto    (nth 8 current)))
+	(save-excursion
+	  (with-current-buffer buf
+	    (if (and (not (equal srcfrom srcto))
+		     (eq (org-element-type (org-element-at-point)) 'src-block))
+		(let ((bs (with-temp-buffer
+			    (insert-file-contents out-file)
+			    (buffer-string))))
+		  (if (org-babel-julia-vterm--check-long-line bs)
+		      "Output suppressed (line too long)"
+		    (goto-char srcfrom)
+		    (org-babel-insert-result bs '("replace"))
+		    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
+		    (delete (assoc uuid org-babel-julia-vterm--evaluation-watches) org-babel-julia-vterm--evaluation-watches)
+		    (sit-for 0.1)
+		    (org-babel-julia-vterm--process-evaluation-queue))))))))))
+
+(defun org-babel-julia-vterm--process-evaluation-queue ()
+  (when (and (queue-p org-babel-julia-vterm--evaluation-queue)
+	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
+    (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
+      (let ((uuid        (nth 0 current))
+	    (session     (nth 1 current))
+	    (result-type (nth 2 current))
+	    (params      (nth 3 current))
+	    (src-file    (nth 4 current))
+	    (out-file    (nth 5 current)))
+	(unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
+	  (julia-vterm-paste-string
+	   (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+	   session)
+	  (let ((desc (file-notify-add-watch
+		       out-file '(change)
+		       (org-babel-julia-vterm--evaluation-completed-callback-func))))
+	    (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches)))))))
+
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type session body)))
+	(src (org-babel-julia-vterm--wrap-body result-type session body))
+	(srcblock (org-element-at-point))
+	(uuid (org-id-uuid)))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
        (format "#= params ======\n%s\n== src =========\n%s===============#\n" params src)
        session))
-    (julia-vterm-paste-string
-     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
-     session)
-    (org-babel-julia-vterm--wait-for-output out-file 10)
-    (with-temp-buffer
-      (insert-file-contents out-file)
-      (let ((bs (buffer-string)))
-	(if (catch 'loop
-	      (dolist (line (split-string bs "\n"))
-		(if (> (length line) 12000)
-		    (throw 'loop t))))
-	    "Output suppressed (line too long)"
-	  bs)))))
+    (let ((srcfrom (make-marker))
+	  (srcto (make-marker)))
+      (set-marker srcfrom (org-element-property :begin srcblock))
+      (set-marker srcto (org-element-property :end srcblock))
+      (org-babel-julia-vterm--add-evaluation-to-evaluation-queue
+       uuid session result-type params src-file out-file (current-buffer) srcfrom srcto))
+    (org-babel-julia-vterm--process-evaluation-queue)
+    (concat "Executing... " uuid)))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
 
