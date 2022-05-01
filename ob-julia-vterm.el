@@ -150,6 +150,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(message "callback func called for %s" uuid)
 	(save-excursion
 	  (with-current-buffer buf
+	    (goto-char srcfrom)
 	    ;; (message "2 src from = %s, to = %s" srcfrom srcto)
 	    (if (and (not (equal srcfrom srcto))
 		     (or (eq (org-element-type (org-element-context)) 'src-block)
@@ -164,14 +165,16 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			(t
 			 (if (org-babel-julia-vterm--check-long-line bs)
 			     "Output suppressed (line too long)"
-			   (goto-char srcfrom)
-			   (org-babel-insert-result bs '("replace")))))
-		  (queue-dequeue org-babel-julia-vterm--evaluation-queue)
-		  (setq org-babel-julia-vterm--evaluation-watches
-			(delete (assoc uuid org-babel-julia-vterm--evaluation-watches)
-				org-babel-julia-vterm--evaluation-watches))
-		  (sit-for 0.1)
-		  (org-babel-julia-vterm--process-evaluation-queue)))))))))
+			   (org-babel-insert-result bs '("replace"))))))
+	      (message "callback called but result not inserted")
+	      (message "from = %s, to = %s\ntype = %s"
+		       srcfrom srcto (org-element-type (org-element-context))))
+	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
+	    (setq org-babel-julia-vterm--evaluation-watches
+		  (delete (assoc uuid org-babel-julia-vterm--evaluation-watches)
+			  org-babel-julia-vterm--evaluation-watches))
+	    (sit-for 0.1)
+	    (org-babel-julia-vterm--process-evaluation-queue)))))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue ()
   (message "objv--clear-evaluation-queue called")
@@ -181,36 +184,39 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (message "Evaluation queue cleared"))
 
 (defun org-babel-julia-vterm--process-evaluation-queue ()
-  (message "objv--process-evaluation-queue called")
-  (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
-      (when (and (queue-p org-babel-julia-vterm--evaluation-queue)
-		 (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
-	(let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
-	  (let ((uuid        (nth 0 current))
-		(session     (nth 1 current))
-		(result-type (nth 2 current))
-		(src-file    (nth 4 current))
-		(out-file    (nth 5 current)))
-	    (unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
-	      (message "Register file notify for %s" uuid)
-	      (let ((desc (file-notify-add-watch
-			   out-file '(change)
-			   (org-babel-julia-vterm--evaluation-completed-callback-func))))
-		(push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
-	      ;; (when org-babel-julia-vterm-debug
-	      ;;   (julia-vterm-paste-string
-	      ;;    (format "#= src-file ======\n%s===============#\n"
-	      ;; 	     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file))
-	      ;;    session))
-	      (message "Run code for %s" uuid)
-	      (julia-vterm-paste-string
-	       (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
-	       session)))))
-    ;; (message "watches = %S" org-babel-julia-vterm--evaluation-watches)
-    ;; (message "queue = %S" org-babel-julia-vterm--evaluation-queue)
-    (message "REPL is not ready. Wait for 1 seconds.")
-    ;; (org-babel-julia-vterm--clear-evaluation-queue)
-    (run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue)))
+  (message "objv--process-evaluation-queue called (%s)"
+	   (if (queue-p org-babel-julia-vterm--evaluation-queue)
+	       (queue-length org-babel-julia-vterm--evaluation-queue)
+	     0))
+  (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
+	   (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
+      (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
+	  (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
+	    (let ((uuid        (nth 0 current))
+		  (session     (nth 1 current))
+		  (result-type (nth 2 current))
+		  (src-file    (nth 4 current))
+		  (out-file    (nth 5 current)))
+	      (unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
+		(message "Register file notify for %s" uuid)
+		(let ((desc (file-notify-add-watch
+			     out-file '(change)
+			     (org-babel-julia-vterm--evaluation-completed-callback-func))))
+		  (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
+		;; (when org-babel-julia-vterm-debug
+		;;   (julia-vterm-paste-string
+		;;    (format "#= src-file ======\n%s===============#\n"
+		;; 	     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file))
+		;;    session))
+		(message "Run code for %s" uuid)
+		(julia-vterm-paste-string
+		 (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+		 session))))
+	;; (message "watches = %S" org-babel-julia-vterm--evaluation-watches)
+	;; (message "queue = %S" org-babel-julia-vterm--evaluation-queue)
+	(message "REPL is not ready. Wait for 1 seconds.")
+	;; (org-babel-julia-vterm--clear-evaluation-queue)
+	(run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue))))
 
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
