@@ -122,6 +122,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (setq c (1+ c)))))
 
 (defun org-babel-julia-vterm--check-long-line (str)
+  "Return t if STR is too long for stable output in the REPL."
   (catch 'loop
     (dolist (line (split-string str "\n"))
       (if (> (length line) 12000)
@@ -138,6 +139,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		(list uuid session result-type params src-file out-file buf srcfrom srcto)))
 
 (defun org-babel-julia-vterm--evaluation-completed-callback-func ()
+  "Return a callback function that is called when the result is written to the file."
   (lambda (event)
     (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
       (let ((uuid        (nth 0 current))
@@ -170,11 +172,13 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	    (org-babel-julia-vterm--process-evaluation-queue)))))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue ()
+  "Clear the evaluation queue and watches."
   (if (queue-p org-babel-julia-vterm--evaluation-queue)
       (queue-clear org-babel-julia-vterm--evaluation-queue))
   (setq org-babel-julia-vterm--evaluation-watches '()))
 
 (defun org-babel-julia-vterm--process-evaluation-queue ()
+  "Process the evaluation queue."
   (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	   (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
       (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
