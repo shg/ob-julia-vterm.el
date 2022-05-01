@@ -132,7 +132,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue
     (uuid session result-type params src-file out-file buf srcfrom srcto)
-  (message "objv--add-evaluation-to-evaluation-queue called")
   (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
       (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
   (queue-append org-babel-julia-vterm--evaluation-queue
@@ -147,11 +146,9 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	    (buf         (nth 6 current))
 	    (srcfrom     (nth 7 current))
 	    (srcto       (nth 8 current)))
-	(message "callback func called for %s" uuid)
 	(save-excursion
 	  (with-current-buffer buf
 	    (goto-char srcfrom)
-	    ;; (message "2 src from = %s, to = %s" srcfrom srcto)
 	    (if (and (not (equal srcfrom srcto))
 		     (or (eq (org-element-type (org-element-context)) 'src-block)
 			 (eq (org-element-type (org-element-context)) 'inline-src-block)))
@@ -159,16 +156,12 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			    (insert-file-contents out-file)
 			    (buffer-string)))
 		      (result-params (cdr (assq :result-params params))))
-		  (message "result-params = " result-params)
 		  (cond ((member "file" result-params)
 			 (org-redisplay-inline-images))
 			(t
 			 (if (org-babel-julia-vterm--check-long-line bs)
 			     "Output suppressed (line too long)"
-			   (org-babel-insert-result bs '("replace"))))))
-	      (message "callback called but result not inserted")
-	      (message "from = %s, to = %s\ntype = %s"
-		       srcfrom srcto (org-element-type (org-element-context))))
+			   (org-babel-insert-result bs '("replace")))))))
 	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
 	    (setq org-babel-julia-vterm--evaluation-watches
 		  (delete (assoc uuid org-babel-julia-vterm--evaluation-watches)
@@ -177,17 +170,11 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	    (org-babel-julia-vterm--process-evaluation-queue)))))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue ()
-  (message "objv--clear-evaluation-queue called")
   (if (queue-p org-babel-julia-vterm--evaluation-queue)
       (queue-clear org-babel-julia-vterm--evaluation-queue))
-  (setq org-babel-julia-vterm--evaluation-watches '())
-  (message "Evaluation queue cleared"))
+  (setq org-babel-julia-vterm--evaluation-watches '()))
 
 (defun org-babel-julia-vterm--process-evaluation-queue ()
-  (message "objv--process-evaluation-queue called (%s)"
-	   (if (queue-p org-babel-julia-vterm--evaluation-queue)
-	       (queue-length org-babel-julia-vterm--evaluation-queue)
-	     0))
   (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	   (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
       (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
@@ -198,24 +185,13 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		  (src-file    (nth 4 current))
 		  (out-file    (nth 5 current)))
 	      (unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
-		(message "Register file notify for %s" uuid)
 		(let ((desc (file-notify-add-watch
 			     out-file '(change)
 			     (org-babel-julia-vterm--evaluation-completed-callback-func))))
 		  (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
-		;; (when org-babel-julia-vterm-debug
-		;;   (julia-vterm-paste-string
-		;;    (format "#= src-file ======\n%s===============#\n"
-		;; 	     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file))
-		;;    session))
-		(message "Run code for %s" uuid)
 		(julia-vterm-paste-string
 		 (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
 		 session))))
-	;; (message "watches = %S" org-babel-julia-vterm--evaluation-watches)
-	;; (message "queue = %S" org-babel-julia-vterm--evaluation-queue)
-	(message "REPL is not ready. Wait for 1 seconds.")
-	;; (org-babel-julia-vterm--clear-evaluation-queue)
 	(run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue))))
 
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
@@ -225,10 +201,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(src (org-babel-julia-vterm--wrap-body session body))
 	(elm (org-element-context))
 	(uuid (org-id-uuid)))
-    (message "------------------------------")
-    (message "objv-evaluate called" )
-    (message "------------------------------")
-    (message "src code from %s to %s" (org-element-property :begin elm) (org-element-property :end elm))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
@@ -238,7 +210,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	  (srcto (make-marker)))
       (set-marker srcfrom (org-element-property :begin elm))
       (set-marker srcto (org-element-property :end elm))
-      ;; (message "1 src from = %s, to = %s" srcfrom srcto)
       (org-babel-julia-vterm--add-evaluation-to-evaluation-queue
        uuid session result-type params src-file out-file (current-buffer) srcfrom srcto))
     (sit-for 0.2)
