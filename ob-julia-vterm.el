@@ -56,20 +56,21 @@
    body
    (if session "" "\nend\n")))
 
-(defun org-babel-julia-vterm--make-str-to-run (result-type verbose src-file out-file)
-  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE and VERBOSE."
-  (message "verbose = %s" verbose)
+(defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
+  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
   (format
-   (cond ((eq result-type 'output)
-	  (cond (verbose "\
+   (pcase result-type
+     ('output "\
 using Logging: Logging; let
     out_file = \"%s\"
     result = open(out_file, \"w\") do io
         logger = Logging.ConsoleLogger(io)
         redirect_stdout(io) do
-            redirect_stderr(io) do
+            try
+                include(\"%s\")
+            catch e
                 Logging.with_logger(logger) do
-                    include(\"%s\")
+                    @error e.error
                 end
             end
         end
@@ -77,22 +78,20 @@ using Logging: Logging; let
     open(io -> println(read(io, String)), out_file)
     result
 end\n")
-		(t "\
-let
-    out_file = \"%s\"
-    result = open(out_file, \"w\") do io
-        redirect_stdout(io) do
-             include(\"%s\")
-        end
-    end
-    open(io -> println(read(io, String)), out_file)
-    result
-end\n")))
-	 ((eq result-type 'value) "\
+     ('value "\
+using Logging: Logging
 open(\"%s\", \"w\") do io
-    result = include(\"%s\")
-    print(io, result)
-    result
+    logger = Logging.ConsoleLogger(io)
+    try
+        result = include(\"%s\")
+        print(io, result)
+        result
+    catch e
+        Logging.with_logger(logger) do
+            @error e.error
+        end
+        e.error
+    end
 end\n"))
    out-file src-file))
 
@@ -133,6 +132,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue
     (uuid session result-type params src-file out-file buf srcfrom srcto)
+  (message "objv--add-evaluation-to-evaluation-queue called")
   (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
       (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
   (queue-append org-babel-julia-vterm--evaluation-queue
@@ -147,9 +147,10 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	    (buf         (nth 6 current))
 	    (srcfrom     (nth 7 current))
 	    (srcto       (nth 8 current)))
+	(message "callback func called for %s" uuid)
 	(save-excursion
 	  (with-current-buffer buf
-	    (message "2 src from = %s, to = %s" srcfrom srcto)
+	    ;; (message "2 src from = %s, to = %s" srcfrom srcto)
 	    (if (and (not (equal srcfrom srcto))
 		     (or (eq (org-element-type (org-element-context)) 'src-block)
 			 (eq (org-element-type (org-element-context)) 'inline-src-block)))
@@ -172,47 +173,69 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		  (sit-for 0.1)
 		  (org-babel-julia-vterm--process-evaluation-queue)))))))))
 
+(defun org-babel-julia-vterm--clear-evaluation-queue ()
+  (message "objv--clear-evaluation-queue called")
+  (if (queue-p org-babel-julia-vterm--evaluation-queue)
+      (queue-clear org-babel-julia-vterm--evaluation-queue))
+  (setq org-babel-julia-vterm--evaluation-watches '())
+  (message "Evaluation queue cleared"))
+
 (defun org-babel-julia-vterm--process-evaluation-queue ()
-  (when (and (queue-p org-babel-julia-vterm--evaluation-queue)
-	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
-    (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
-      (let ((uuid        (nth 0 current))
-	    (session     (nth 1 current))
-	    (result-type (nth 2 current))
-	    (src-file    (nth 4 current))
-	    (out-file    (nth 5 current))
-	    (verbose     (member "verbose" (nth 3 current))))
-	(message "cur 3 = %s" (nth 3 current))
-	(unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
-	  (let ((desc (file-notify-add-watch
-		       out-file '(change)
-		       (org-babel-julia-vterm--evaluation-completed-callback-func))))
-	    (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
-	  (julia-vterm-paste-string
-	   (org-babel-julia-vterm--make-str-to-run result-type verbose src-file out-file)
-	   session))))))
+  (message "objv--process-evaluation-queue called")
+  (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
+      (when (and (queue-p org-babel-julia-vterm--evaluation-queue)
+		 (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
+	(let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
+	  (let ((uuid        (nth 0 current))
+		(session     (nth 1 current))
+		(result-type (nth 2 current))
+		(src-file    (nth 4 current))
+		(out-file    (nth 5 current)))
+	    (unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
+	      (message "Register file notify for %s" uuid)
+	      (let ((desc (file-notify-add-watch
+			   out-file '(change)
+			   (org-babel-julia-vterm--evaluation-completed-callback-func))))
+		(push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
+	      ;; (when org-babel-julia-vterm-debug
+	      ;;   (julia-vterm-paste-string
+	      ;;    (format "#= src-file ======\n%s===============#\n"
+	      ;; 	     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file))
+	      ;;    session))
+	      (message "Run code for %s" uuid)
+	      (julia-vterm-paste-string
+	       (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+	       session)))))
+    ;; (message "watches = %S" org-babel-julia-vterm--evaluation-watches)
+    ;; (message "queue = %S" org-babel-julia-vterm--evaluation-queue)
+    (message "REPL is not ready. Wait for 1 seconds.")
+    ;; (org-babel-julia-vterm--clear-evaluation-queue)
+    (run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue)))
 
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(verbose (member "verbose" (cdr (assq :result-params params))))
 	(src (org-babel-julia-vterm--wrap-body session body))
 	(elm (org-element-context))
 	(uuid (org-id-uuid)))
-    (message "from %s, to %s" (org-element-property :begin elm) (org-element-property :end elm))
+    (message "------------------------------")
+    (message "objv-evaluate called" )
+    (message "------------------------------")
+    (message "src code from %s to %s" (org-element-property :begin elm) (org-element-property :end elm))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
-       (format "#= params ======\n%s\n== src =========\n%s===============#\n" params src)
+       (format "#= params ======\n%s\n== src =========\n%s\n===============#\n" params src)
        session))
     (let ((srcfrom (make-marker))
 	  (srcto (make-marker)))
       (set-marker srcfrom (org-element-property :begin elm))
       (set-marker srcto (org-element-property :end elm))
-      (message "1 src from = %s, to = %s" srcfrom srcto)
+      ;; (message "1 src from = %s, to = %s" srcfrom srcto)
       (org-babel-julia-vterm--add-evaluation-to-evaluation-queue
        uuid session result-type params src-file out-file (current-buffer) srcfrom srcto))
+    (sit-for 0.2)
     (org-babel-julia-vterm--process-evaluation-queue)
     (concat "Executing... " (substring uuid 0 8))))
 
