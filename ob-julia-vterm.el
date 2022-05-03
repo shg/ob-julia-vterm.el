@@ -100,11 +100,12 @@ end\n"))
 This function is called by `org-babel-execute-src-block'.
 BODY is the contents and PARAMS are header arguments of the code block."
   (let* ((session-name (cdr (assq :session params)))
-	 (result-type (cdr (assq :result-type params)))
-	 (var-lines (org-babel-variable-assignments:julia-vterm params))
-	 (full-body (org-babel-expand-body:generic body params var-lines))
-	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name))))
-    (org-babel-julia-vterm-evaluate session full-body result-type params)))
+	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name)))
+	 (var-lines (org-babel-variable-assignments:julia-vterm params)))
+    (org-babel-julia-vterm-evaluate (current-buffer)
+				    session
+				    (org-babel-expand-body:generic body params var-lines)
+				    params)))
 
 (defun org-babel-variable-assignments:julia-vterm (params)
   "Return list of Julia statements assigning variables based on variable-value pairs in PARAMS."
@@ -122,34 +123,27 @@ BODY is the contents and PARAMS are header arguments of the code block."
 (defvar-local org-babel-julia-vterm--evaluation-queue nil)
 (defvar-local org-babel-julia-vterm--evaluation-watches nil)
 
-(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue
-    (uuid session result-type params src-file out-file buf srcfrom srcto)
+(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (evaluation)
+  "Add an EVALUATION of a source block to queue."
   (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
       (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
-  (queue-append org-babel-julia-vterm--evaluation-queue
-		(list uuid session result-type params src-file out-file buf srcfrom srcto)))
+  (queue-append org-babel-julia-vterm--evaluation-queue evaluation))
 
 (defun org-babel-julia-vterm--evaluation-completed-callback-func ()
   "Return a callback function that is called when the result is written to the file."
   (lambda (event)
     (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
-      (let ((uuid        (nth 0 current))
-	    (params      (nth 3 current))
-	    (out-file    (nth 5 current))
-	    (buf         (nth 6 current))
-	    (srcfrom     (nth 7 current))
-	    (srcto       (nth 8 current)))
+      (let-alist current
 	(save-excursion
-	  (with-current-buffer buf
-	    (goto-char srcfrom)
-	    (if (and (not (equal srcfrom srcto))
+	  (with-current-buffer .buf
+	    (goto-char .src-block-begin)
+	    (if (and (not (equal .src-block-begin .src-block-end))
 		     (or (eq (org-element-type (org-element-context)) 'src-block)
 			 (eq (org-element-type (org-element-context)) 'inline-src-block)))
 		(let ((bs (with-temp-buffer
-			    (insert-file-contents out-file)
-			    (buffer-string)))
-		      (result-params (cdr (assq :result-params params))))
-		  (cond ((member "file" result-params)
+			    (insert-file-contents .out-file)
+			    (buffer-string))))
+		  (cond ((member "file" (cdr (assq :result-params .params)))
 			 (org-redisplay-inline-images))
 			(t
 			 (if (org-babel-julia-vterm--check-long-line bs)
@@ -157,7 +151,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			   (org-babel-insert-result bs '("replace")))))))
 	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
 	    (setq org-babel-julia-vterm--evaluation-watches
-		  (delete (assoc uuid org-babel-julia-vterm--evaluation-watches)
+		  (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
 			  org-babel-julia-vterm--evaluation-watches))
 	    (sit-for 0.1)
 	    (org-babel-julia-vterm--process-evaluation-queue)))))))
@@ -174,39 +168,43 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	   (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
       (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
 	  (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
-	    (let ((uuid        (nth 0 current))
-		  (session     (nth 1 current))
-		  (result-type (nth 2 current))
-		  (src-file    (nth 4 current))
-		  (out-file    (nth 5 current)))
-	      (unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
+	    (let-alist current
+	      (unless (assoc .uuid org-babel-julia-vterm--evaluation-watches)
 		(let ((desc (file-notify-add-watch
-			     out-file '(change)
+			     .out-file '(change)
 			     (org-babel-julia-vterm--evaluation-completed-callback-func))))
-		  (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
+		  (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
 		(julia-vterm-paste-string
-		 (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
-		 session))))
+		 (org-babel-julia-vterm--make-str-to-run (cdr (assq :result-type .params))
+							 .src-file .out-file)
+		 .session))))
 	(run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue))))
 
-(defun org-babel-julia-vterm-evaluate (session body result-type params)
+(defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
-  (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
+  (let ((uuid (org-id-uuid))
+	(src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body session body))
-	(elm (org-element-context))
-	(uuid (org-id-uuid)))
+	(src (org-babel-julia-vterm--wrap-body session body)))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
        (format "#= params ======\n%s\n== src =========\n%s\n===============#\n" params src)
        session))
-    (let ((srcfrom (make-marker))
-	  (srcto (make-marker)))
-      (set-marker srcfrom (org-element-property :begin elm))
-      (set-marker srcto (org-element-property :end elm))
+    (let ((elm (org-element-context))
+	  (src-block-begin (make-marker))
+	  (src-block-end (make-marker)))
+      (set-marker src-block-begin (org-element-property :begin elm))
+      (set-marker src-block-end (org-element-property :end elm))
       (org-babel-julia-vterm--add-evaluation-to-evaluation-queue
-       uuid session result-type params src-file out-file (current-buffer) srcfrom srcto))
+       (list (cons 'uuid uuid)
+	     (cons 'buf buf)
+	     (cons 'session session)
+	     (cons 'params params)
+	     (cons 'src-file src-file)
+	     (cons 'out-file out-file)
+	     (cons 'src-block-begin src-block-begin)
+	     (cons 'src-block-end src-block-end))))
     (sit-for 0.2)
     (org-babel-julia-vterm--process-evaluation-queue)
     (concat "Executing... " (substring uuid 0 8))))
