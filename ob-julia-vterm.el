@@ -123,17 +123,18 @@ BODY is the contents and PARAMS are header arguments of the code block."
 (defvar-local org-babel-julia-vterm--evaluation-queue nil)
 (defvar-local org-babel-julia-vterm--evaluation-watches nil)
 
-(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (evaluation)
-  "Add an EVALUATION of a source block to queue."
-  (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
-      (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
-  (queue-append org-babel-julia-vterm--evaluation-queue evaluation))
+(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (session evaluation)
+  "Add an EVALUATION of a source block to the evaluation queue for SESSION."
+  (with-current-buffer (julia-vterm-repl-buffer-name session)
+    (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
+	(setq org-babel-julia-vterm--evaluation-queue (queue-create)))
+    (queue-append org-babel-julia-vterm--evaluation-queue evaluation)))
 
-(defun org-babel-julia-vterm--evaluation-completed-callback-func ()
-  "Return a callback function that is called when the result is written to the file."
+(defun org-babel-julia-vterm--evaluation-completed-callback-func (session)
+  "Return a callback function that is called when the first evaluation for SESSION is done."
   (lambda (event)
-    (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
-      (let-alist current
+    (with-current-buffer (julia-vterm-repl-buffer-name session)
+      (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
 	(save-excursion
 	  (with-current-buffer .buf
 	    (goto-char .src-block-begin)
@@ -148,37 +149,39 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			(t
 			 (if (org-babel-julia-vterm--check-long-line bs)
 			     "Output suppressed (line too long)"
-			   (org-babel-insert-result bs '("replace")))))))
-	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
-	    (setq org-babel-julia-vterm--evaluation-watches
-		  (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
-			  org-babel-julia-vterm--evaluation-watches))
-	    (sit-for 0.1)
-	    (org-babel-julia-vterm--process-evaluation-queue)))))))
+			   (org-babel-insert-result bs '("replace"))))))))
+	  (queue-dequeue org-babel-julia-vterm--evaluation-queue)
+	  (setq org-babel-julia-vterm--evaluation-watches
+		(delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
+			org-babel-julia-vterm--evaluation-watches))
+	  (sit-for 0.1)
+	  (org-babel-julia-vterm--process-evaluation-queue .session))))))
 
-(defun org-babel-julia-vterm--clear-evaluation-queue ()
-  "Clear the evaluation queue and watches."
-  (if (queue-p org-babel-julia-vterm--evaluation-queue)
-      (queue-clear org-babel-julia-vterm--evaluation-queue))
-  (setq org-babel-julia-vterm--evaluation-watches '()))
+(defun org-babel-julia-vterm--clear-evaluation-queue (session)
+  "Clear the evaluation queue and watches for SESSION."
+  (with-current-buffer (julia-vterm-repl-buffer-name session)
+    (if (queue-p org-babel-julia-vterm--evaluation-queue)
+	(queue-clear org-babel-julia-vterm--evaluation-queue))
+    (setq org-babel-julia-vterm--evaluation-watches '())))
 
-(defun org-babel-julia-vterm--process-evaluation-queue ()
-  "Process the evaluation queue."
-  (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
-	   (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
-      (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
-	  (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
-	    (let-alist current
+(defun org-babel-julia-vterm--process-evaluation-queue (session)
+  "Process the evaluation queue for SESSION."
+  (message "process session = %s" session)
+  (with-current-buffer (julia-vterm-repl-buffer-name session)
+    (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
+	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
+	(if (eq (julia-vterm-repl-buffer-status) :julia)
+	    (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
 	      (unless (assoc .uuid org-babel-julia-vterm--evaluation-watches)
 		(let ((desc (file-notify-add-watch
 			     .out-file '(change)
-			     (org-babel-julia-vterm--evaluation-completed-callback-func))))
+			     (org-babel-julia-vterm--evaluation-completed-callback-func session))))
 		  (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
 		(julia-vterm-paste-string
 		 (org-babel-julia-vterm--make-str-to-run (cdr (assq :result-type .params))
 							 .src-file .out-file)
-		 .session))))
-	(run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue))))
+		 .session)))
+	  (run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
@@ -197,6 +200,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (set-marker src-block-begin (org-element-property :begin elm))
       (set-marker src-block-end (org-element-property :end elm))
       (org-babel-julia-vterm--add-evaluation-to-evaluation-queue
+       session
        (list (cons 'uuid uuid)
 	     (cons 'buf buf)
 	     (cons 'session session)
@@ -206,7 +210,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	     (cons 'src-block-begin src-block-begin)
 	     (cons 'src-block-end src-block-end))))
     (sit-for 0.2)
-    (org-babel-julia-vterm--process-evaluation-queue)
+    (org-babel-julia-vterm--process-evaluation-queue session)
     (concat "Executing... " (substring uuid 0 8))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
