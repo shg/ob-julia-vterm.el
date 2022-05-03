@@ -112,15 +112,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
    (lambda (pair) (format "%s = %s" (car pair) (cdr pair)))
    (org-babel--get-vars params)))
 
-(defun org-babel-julia-vterm--wait-for-output (file &optional timeout)
-  "Wait until the FILE is written or TIMEOUT seconds have elapsed."
-  (let ((c 0)
-	(timeout (or timeout 10))
-	(interval 0.1))
-    (while (and (< c (/ timeout interval)) (= 0 (file-attribute-size (file-attributes file))))
-      (sit-for interval)
-      (setq c (1+ c)))))
-
 (defun org-babel-julia-vterm--check-long-line (str)
   "Return t if STR is too long for stable output in the REPL."
   (catch 'loop
