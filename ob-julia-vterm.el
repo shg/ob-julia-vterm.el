@@ -33,12 +33,9 @@
 
 ;;; Requirements:
 
-;; This package uses julia-vterm to run Julia code.  You also need to
-;; have Suppressor.jl package installed in your Julia environment to
-;; use :results output.
+;; This package uses julia-vterm to run Julia code.
 ;;
 ;; - https://github.com/shg/julia-vterm.el
-;; - https://github.com/JuliaIO/Suppressor.jl
 ;;
 ;; See https://github.com/shg/ob-julia-vterm.el for installation
 ;; instructions.
@@ -46,30 +43,57 @@
 ;;; Code:
 
 (require 'ob)
+(require 'queue)
+(require 'filenotify)
 (require 'julia-vterm)
 
 (defvar org-babel-julia-vterm-debug nil)
 
-(defun org-babel-julia-vterm--wrap-body (result-type session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on RESULT-TYPE and SESSION."
+(defun org-babel-julia-vterm--wrap-body (session body)
+  "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
   (concat
-   "_julia_vterm_output = "
-   (if (eq result-type 'output)
-       (concat "@capture_out begin "
-	       (if session "eval(Meta.parse(raw\"\"\"begin\n" "\n"))
-     (if session "begin\n" "let\n"))
+   (if session "" "let\n")
    body
-   (if (and (eq result-type 'output) session)
-       "\nend\"\"\"))")
-   "\nend\n"))
+   (if session "" "\nend\n")))
 
 (defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
   "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
   (format
-   (concat
-    (if (eq result-type 'output) "using Suppressor; ")
-    "include(\"%s\");  open(\"%s\", \"w\") do file; print(file, _julia_vterm_output); end\n")
-   src-file out-file))
+   (pcase result-type
+     ('output "\
+using Logging: Logging; let
+    out_file = \"%s\"
+    result = open(out_file, \"w\") do io
+        logger = Logging.ConsoleLogger(io)
+        redirect_stdout(io) do
+            try
+                include(\"%s\")
+            catch e
+                Logging.with_logger(logger) do
+                    @error e.error
+                end
+            end
+        end
+    end
+    open(io -> println(read(io, String)), out_file)
+    result
+end\n")
+     ('value "\
+using Logging: Logging
+open(\"%s\", \"w\") do io
+    logger = Logging.ConsoleLogger(io)
+    try
+        result = include(\"%s\")
+        print(io, result)
+        result
+    catch e
+        Logging.with_logger(logger) do
+            @error e.error
+        end
+        e.error
+    end
+end\n"))
+   out-file src-file))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
@@ -97,29 +121,104 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (sit-for interval)
       (setq c (1+ c)))))
 
+(defun org-babel-julia-vterm--check-long-line (str)
+  "Return t if STR is too long for stable output in the REPL."
+  (catch 'loop
+    (dolist (line (split-string str "\n"))
+      (if (> (length line) 12000)
+	  (throw 'loop t)))))
+
+(defvar-local org-babel-julia-vterm--evaluation-queue nil)
+(defvar-local org-babel-julia-vterm--evaluation-watches nil)
+
+(defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue
+    (uuid session result-type params src-file out-file buf srcfrom srcto)
+  (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
+      (setq org-babel-julia-vterm--evaluation-queue (queue-create)))
+  (queue-append org-babel-julia-vterm--evaluation-queue
+		(list uuid session result-type params src-file out-file buf srcfrom srcto)))
+
+(defun org-babel-julia-vterm--evaluation-completed-callback-func ()
+  "Return a callback function that is called when the result is written to the file."
+  (lambda (event)
+    (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
+      (let ((uuid        (nth 0 current))
+	    (params      (nth 3 current))
+	    (out-file    (nth 5 current))
+	    (buf         (nth 6 current))
+	    (srcfrom     (nth 7 current))
+	    (srcto       (nth 8 current)))
+	(save-excursion
+	  (with-current-buffer buf
+	    (goto-char srcfrom)
+	    (if (and (not (equal srcfrom srcto))
+		     (or (eq (org-element-type (org-element-context)) 'src-block)
+			 (eq (org-element-type (org-element-context)) 'inline-src-block)))
+		(let ((bs (with-temp-buffer
+			    (insert-file-contents out-file)
+			    (buffer-string)))
+		      (result-params (cdr (assq :result-params params))))
+		  (cond ((member "file" result-params)
+			 (org-redisplay-inline-images))
+			(t
+			 (if (org-babel-julia-vterm--check-long-line bs)
+			     "Output suppressed (line too long)"
+			   (org-babel-insert-result bs '("replace")))))))
+	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
+	    (setq org-babel-julia-vterm--evaluation-watches
+		  (delete (assoc uuid org-babel-julia-vterm--evaluation-watches)
+			  org-babel-julia-vterm--evaluation-watches))
+	    (sit-for 0.1)
+	    (org-babel-julia-vterm--process-evaluation-queue)))))))
+
+(defun org-babel-julia-vterm--clear-evaluation-queue ()
+  "Clear the evaluation queue and watches."
+  (if (queue-p org-babel-julia-vterm--evaluation-queue)
+      (queue-clear org-babel-julia-vterm--evaluation-queue))
+  (setq org-babel-julia-vterm--evaluation-watches '()))
+
+(defun org-babel-julia-vterm--process-evaluation-queue ()
+  "Process the evaluation queue."
+  (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
+	   (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
+      (if (eq (julia-vterm-fellow-repl-buffer-status) :julia)
+	  (let ((current (queue-first org-babel-julia-vterm--evaluation-queue)))
+	    (let ((uuid        (nth 0 current))
+		  (session     (nth 1 current))
+		  (result-type (nth 2 current))
+		  (src-file    (nth 4 current))
+		  (out-file    (nth 5 current)))
+	      (unless (assoc uuid org-babel-julia-vterm--evaluation-watches)
+		(let ((desc (file-notify-add-watch
+			     out-file '(change)
+			     (org-babel-julia-vterm--evaluation-completed-callback-func))))
+		  (push (cons uuid desc) org-babel-julia-vterm--evaluation-watches))
+		(julia-vterm-paste-string
+		 (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
+		 session))))
+	(run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue))))
+
 (defun org-babel-julia-vterm-evaluate (session body result-type params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body result-type session body)))
+	(src (org-babel-julia-vterm--wrap-body session body))
+	(elm (org-element-context))
+	(uuid (org-id-uuid)))
     (with-temp-file src-file (insert src))
     (when org-babel-julia-vterm-debug
       (julia-vterm-paste-string
-       (format "#= params ======\n%s\n== src =========\n%s===============#\n" params src)
+       (format "#= params ======\n%s\n== src =========\n%s\n===============#\n" params src)
        session))
-    (julia-vterm-paste-string
-     (org-babel-julia-vterm--make-str-to-run result-type src-file out-file)
-     session)
-    (org-babel-julia-vterm--wait-for-output out-file 10)
-    (with-temp-buffer
-      (insert-file-contents out-file)
-      (let ((bs (buffer-string)))
-	(if (catch 'loop
-	      (dolist (line (split-string bs "\n"))
-		(if (> (length line) 12000)
-		    (throw 'loop t))))
-	    "Output suppressed (line too long)"
-	  bs)))))
+    (let ((srcfrom (make-marker))
+	  (srcto (make-marker)))
+      (set-marker srcfrom (org-element-property :begin elm))
+      (set-marker srcto (org-element-property :end elm))
+      (org-babel-julia-vterm--add-evaluation-to-evaluation-queue
+       uuid session result-type params src-file out-file (current-buffer) srcfrom srcto))
+    (sit-for 0.2)
+    (org-babel-julia-vterm--process-evaluation-queue)
+    (concat "Executing... " (substring uuid 0 8))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
 
