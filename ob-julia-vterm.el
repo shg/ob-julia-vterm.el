@@ -47,8 +47,6 @@
 (require 'filenotify)
 (require 'julia-vterm)
 
-(defvar org-babel-julia-vterm-debug nil)
-
 (defun org-babel-julia-vterm--wrap-body (session body)
   "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
   (concat
@@ -175,7 +173,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun org-babel-julia-vterm--process-evaluation-queue (session)
   "Process the evaluation queue for SESSION."
-  (message "process session = %s" session)
   (with-current-buffer (julia-vterm-repl-buffer-name session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
@@ -200,10 +197,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
 	(src (org-babel-julia-vterm--wrap-body session body)))
     (with-temp-file src-file (insert src))
-    (when org-babel-julia-vterm-debug
-      (julia-vterm-paste-string
-       (format "#= params ======\n%s\n== src =========\n%s\n===============#\n" params src)
-       session))
     (let ((elm (org-element-context))
 	  (src-block-begin (make-marker))
 	  (src-block-end (make-marker)))
