@@ -157,7 +157,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(setq org-babel-julia-vterm--evaluation-watches
 	      (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
 		      org-babel-julia-vterm--evaluation-watches))
-	(sit-for 0.1)
 	(org-babel-julia-vterm--process-evaluation-queue .session)))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue (session)
@@ -192,7 +191,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		 (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 							 .src-file .out-file)
 		 .session)))
-	  (run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
+	  (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
@@ -216,7 +215,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	     (cons 'out-file out-file)
 	     (cons 'src-block-begin src-block-begin)
 	     (cons 'src-block-end src-block-end))))
-    (sit-for 0.2)
     (org-babel-julia-vterm--process-evaluation-queue session)
     (concat "Executing... " (substring uuid 0 8))))
 
