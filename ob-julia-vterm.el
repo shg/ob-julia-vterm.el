@@ -124,7 +124,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (session evaluation)
   "Add an EVALUATION of a source block to the evaluation queue for SESSION."
-  (with-current-buffer (julia-vterm-repl-buffer-name session)
+  (with-current-buffer (julia-vterm-repl-buffer session)
     (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
 	(setq org-babel-julia-vterm--evaluation-queue (queue-create)))
     (queue-append org-babel-julia-vterm--evaluation-queue evaluation)))
@@ -132,33 +132,36 @@ BODY is the contents and PARAMS are header arguments of the code block."
 (defun org-babel-julia-vterm--evaluation-completed-callback-func (session)
   "Return a callback function that is called when the first evaluation for SESSION is done."
   (lambda (event)
-    (with-current-buffer (julia-vterm-repl-buffer-name session)
+    (with-current-buffer (julia-vterm-repl-buffer session)
       (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
-	(save-excursion
-	  (with-current-buffer .buf
+	(with-current-buffer .buf
+	  (save-excursion
 	    (goto-char .src-block-begin)
 	    (if (and (not (equal .src-block-begin .src-block-end))
 		     (or (eq (org-element-type (org-element-context)) 'src-block)
 			 (eq (org-element-type (org-element-context)) 'inline-src-block)))
 		(let ((bs (with-temp-buffer
 			    (insert-file-contents .out-file)
-			    (buffer-string))))
-		  (cond ((member "file" (cdr (assq :result-params .params)))
+			    (buffer-string)))
+		      (result-params (cdr (assq :result-params .params))))
+		  (cond ((member "file" result-params)
 			 (org-redisplay-inline-images))
-			(t
-			 (if (org-babel-julia-vterm--check-long-line bs)
-			     "Output suppressed (line too long)"
-			   (org-babel-insert-result bs '("replace"))))))))
-	  (queue-dequeue org-babel-julia-vterm--evaluation-queue)
-	  (setq org-babel-julia-vterm--evaluation-watches
-		(delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
-			org-babel-julia-vterm--evaluation-watches))
-	  (sit-for 0.1)
-	  (org-babel-julia-vterm--process-evaluation-queue .session))))))
+			((not (member "none" result-params))
+			 (org-babel-insert-result
+			  (if (org-babel-julia-vterm--check-long-line bs)
+			      "Output suppressed (line too long)"
+			    bs)
+			  result-params
+			  (org-babel-get-src-block-info))))))))
+	(queue-dequeue org-babel-julia-vterm--evaluation-queue)
+	(setq org-babel-julia-vterm--evaluation-watches
+	      (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
+		      org-babel-julia-vterm--evaluation-watches))
+	(org-babel-julia-vterm--process-evaluation-queue .session)))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue (session)
   "Clear the evaluation queue and watches for SESSION."
-  (with-current-buffer (julia-vterm-repl-buffer-name session)
+  (with-current-buffer (julia-vterm-repl-buffer session)
     (if (queue-p org-babel-julia-vterm--evaluation-queue)
 	(queue-clear org-babel-julia-vterm--evaluation-queue))
     (setq org-babel-julia-vterm--evaluation-watches '())))
@@ -173,7 +176,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun org-babel-julia-vterm--process-evaluation-queue (session)
   "Process the evaluation queue for SESSION."
-  (with-current-buffer (julia-vterm-repl-buffer-name session)
+  (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
 	(if (eq (julia-vterm-repl-buffer-status) :julia)
@@ -188,7 +191,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		 (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 							 .src-file .out-file)
 		 .session)))
-	  (run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
+	  (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
@@ -212,7 +215,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	     (cons 'out-file out-file)
 	     (cons 'src-block-begin src-block-begin)
 	     (cons 'src-block-end src-block-end))))
-    (sit-for 0.2)
     (org-babel-julia-vterm--process-evaluation-queue session)
     (concat "Executing... " (substring uuid 0 8))))
 
