@@ -47,8 +47,6 @@
 (require 'filenotify)
 (require 'julia-vterm)
 
-(defvar org-babel-julia-vterm-debug nil)
-
 (defun org-babel-julia-vterm--wrap-body (session body)
   "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
   (concat
@@ -56,11 +54,12 @@
    body
    (if session "" "\nend\n")))
 
-(defun org-babel-julia-vterm--make-str-to-run (result-type src-file out-file)
+(defun org-babel-julia-vterm--make-str-to-run (uuid result-type src-file out-file)
   "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
   (format
    (pcase result-type
      ('output "\
+#OB-JULIA-VTERM_BEGIN %s
 using Logging: Logging; let
     out_file = \"%s\"
     result = open(out_file, \"w\") do io
@@ -70,17 +69,17 @@ using Logging: Logging; let
                 include(\"%s\")
             catch e
                 Logging.with_logger(logger) do
-                    @error e.error
+                    @error e
                 end
             end
         end
     end
     open(io -> println(read(io, String)), out_file)
     result
-end\n")
+end #OB-JULIA-VTERM_END\n")
      ('value "\
-using Logging: Logging
-open(\"%s\", \"w\") do io
+#OB-JULIA-VTERM_BEGIN %s
+using Logging: Logging; open(\"%s\", \"w\") do io
     logger = Logging.ConsoleLogger(io)
     try
         result = include(\"%s\")
@@ -88,12 +87,12 @@ open(\"%s\", \"w\") do io
         result
     catch e
         Logging.with_logger(logger) do
-            @error e.error
+            @error e
         end
-        e.error
+        e
     end
-end\n"))
-   out-file src-file))
+end #OB-JULIA-VTERM_END\n"))
+   (substring uuid 0 8) out-file src-file))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
@@ -164,9 +163,16 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(queue-clear org-babel-julia-vterm--evaluation-queue))
     (setq org-babel-julia-vterm--evaluation-watches '())))
 
+(defun org-babel-julia-vterm--output-filter (str)
+  "Remove echoed output of the pasted julia code from STR."
+  (let* ((str (replace-regexp-in-string
+	       "#OB-JULIA-VTERM_BEGIN \\([0-9a-z]*\\)\\(.*?\n\\)*.*" "Executing... \\1" str))
+	 (str (replace-regexp-in-string
+	       "\\(.*?\n\\)*.*#OB-JULIA-VTERM_END" "" str)))
+    str))
+
 (defun org-babel-julia-vterm--process-evaluation-queue (session)
   "Process the evaluation queue for SESSION."
-  (message "process session = %s" session)
   (with-current-buffer (julia-vterm-repl-buffer-name session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
@@ -177,8 +183,9 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			     .out-file '(change)
 			     (org-babel-julia-vterm--evaluation-completed-callback-func session))))
 		  (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
+		(add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
 		(julia-vterm-paste-string
-		 (org-babel-julia-vterm--make-str-to-run (cdr (assq :result-type .params))
+		 (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 							 .src-file .out-file)
 		 .session)))
 	  (run-at-time 1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
@@ -190,10 +197,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
 	(src (org-babel-julia-vterm--wrap-body session body)))
     (with-temp-file src-file (insert src))
-    (when org-babel-julia-vterm-debug
-      (julia-vterm-paste-string
-       (format "#= params ======\n%s\n== src =========\n%s\n===============#\n" params src)
-       session))
     (let ((elm (org-element-context))
 	  (src-block-begin (make-marker))
 	  (src-block-end (make-marker)))
