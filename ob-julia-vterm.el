@@ -103,7 +103,8 @@ This function is called by `org-babel-execute-src-block'.
 BODY is the contents and PARAMS are header arguments of the code block."
   (let* ((session-name (cdr (assq :session params)))
 	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name)))
-	 (var-lines (org-babel-variable-assignments:julia-vterm params)))
+	 (var-lines (org-babel-variable-assignments:julia-vterm params))
+	 (result-params (cdr (assq :result-params params))))
     (org-babel-julia-vterm-evaluate (current-buffer)
 				    session
 				    (org-babel-expand-body:generic body params var-lines)
@@ -179,7 +180,7 @@ specifying a variable of the same value."
 	(setq org-babel-julia-vterm--evaluation-watches
 	      (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
 		      org-babel-julia-vterm--evaluation-watches))
-	(org-babel-julia-vterm--process-evaluation-queue .session)))))
+	(org-babel-julia-vterm--process-evaluation-queue .session t)))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue (session)
   "Clear the evaluation queue and watches for SESSION."
@@ -196,31 +197,57 @@ specifying a variable of the same value."
 	       "\\(.*?\n\\)*.*#OB-JULIA-VTERM_END" "" str)))
     str))
 
-(defun org-babel-julia-vterm--process-evaluation-queue (session)
+(defun org-babel-julia-vterm--process-evaluation-queue (session async)
   "Process the evaluation queue for SESSION."
+  (message "process async = %s" async)
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
-	(if (eq (julia-vterm-repl-buffer-status) :julia)
+	(if async
+	    (if (eq (julia-vterm-repl-buffer-status) :julia)
+		(let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
+		  (unless (assoc .uuid org-babel-julia-vterm--evaluation-watches)
+		    (let ((desc (file-notify-add-watch
+				 .out-file '(change)
+				 (org-babel-julia-vterm--evaluation-completed-callback-func session))))
+		      (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
+		    (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
+		    (julia-vterm-paste-string
+		     (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
+							     .src-file .out-file)
+		     .session)))
+	      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session t))
+	  ;; not async (=synchronous)
+	  (if (not (eq (julia-vterm-repl-buffer-status) :julia))
+	      "REPL is not ready"
+	    ;; run code synchronously
 	    (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
-	      (unless (assoc .uuid org-babel-julia-vterm--evaluation-watches)
-		(let ((desc (file-notify-add-watch
-			     .out-file '(change)
-			     (org-babel-julia-vterm--evaluation-completed-callback-func session))))
-		  (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
-		(add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
-		(julia-vterm-paste-string
-		 (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
-							 .src-file .out-file)
-		 .session)))
-	  (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session)))))
+	      (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
+	      (julia-vterm-paste-string
+	       (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
+						       .src-file .out-file)
+	       .session)
+	      (let ((c 0))
+		(while (and (< c 100) (= 0 (file-attribute-size (file-attributes .out-file))))
+		  (sit-for 0.1)
+		  (setq c (1+ c))))
+	      (with-temp-buffer
+		(insert-file-contents .out-file)
+		(let ((bs (buffer-string)))
+		  (if (catch 'loop
+			(dolist (line (split-string bs "\n"))
+			  (if (> (length line) 12000)
+			      (throw 'loop t))))
+		      "Output suppressed (line too long)"
+		    bs)))))))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
   (let ((uuid (org-id-uuid))
 	(src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(src (org-babel-julia-vterm--wrap-body session body)))
+	(src (org-babel-julia-vterm--wrap-body session body))
+	(async (not (member "silent" (cdr (assq :result-params params))))))
     (with-temp-file src-file (insert src))
     (let ((elm (org-element-context))
 	  (src-block-begin (make-marker))
@@ -237,8 +264,8 @@ specifying a variable of the same value."
 	     (cons 'out-file out-file)
 	     (cons 'src-block-begin src-block-begin)
 	     (cons 'src-block-end src-block-end))))
-    (org-babel-julia-vterm--process-evaluation-queue session)
-    (concat "Executing... " (substring uuid 0 8))))
+    (or (org-babel-julia-vterm--process-evaluation-queue session async)
+	(concat "Executing... " (substring uuid 0 8)))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
 
