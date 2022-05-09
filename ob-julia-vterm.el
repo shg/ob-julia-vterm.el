@@ -199,7 +199,6 @@ specifying a variable of the same value."
 
 (defun org-babel-julia-vterm--process-evaluation-queue (session async)
   "Process the evaluation queue for SESSION."
-  (message "process async = %s" async)
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
@@ -215,12 +214,12 @@ specifying a variable of the same value."
 		    (julia-vterm-paste-string
 		     (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 							     .src-file .out-file)
-		     .session)))
-	      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session t))
-	  ;; not async (=synchronous)
+		     .session))
+		  nil)
+	      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session t)
+	      nil)
 	  (if (not (eq (julia-vterm-repl-buffer-status) :julia))
 	      "REPL is not ready"
-	    ;; run code synchronously
 	    (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
 	      (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
 	      (julia-vterm-paste-string
