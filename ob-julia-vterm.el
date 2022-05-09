@@ -231,6 +231,7 @@ specifying a variable of the same value."
 		(while (and (< c 100) (= 0 (file-attribute-size (file-attributes .out-file))))
 		  (sit-for 0.1)
 		  (setq c (1+ c))))
+	      (queue-dequeue org-babel-julia-vterm--evaluation-queue)
 	      (with-temp-buffer
 		(insert-file-contents .out-file)
 		(let ((bs (buffer-string)))
