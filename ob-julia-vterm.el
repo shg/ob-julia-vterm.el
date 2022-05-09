@@ -115,7 +115,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (mapcar
    (lambda (pair)
      (format "%s = %s"
-	     (car pair) (org-babel-julia-vterm-var-to-julia (cdr pair))))
+	     (car pair) (org-babel-julia-vterm--value-to-julia (cdr pair))))
    (org-babel--get-vars params)))
 
 (defun org-babel-julia-vterm--escape-string (str)
@@ -123,17 +123,18 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (let* ((str (replace-regexp-in-string "\"" "\\\\\"" str)))
     str))
 
-(defun org-babel-julia-vterm-var-to-julia (var)
+(defun org-babel-julia-vterm--value-to-julia (value)
   "Convert an emacs-lisp value to a julia variable.
 Converts an emacs-lisp value, VAR, into a string of julia code
 specifying a variable of the same value."
-  (cond ((numberp var) var)
-	((stringp var)
-	 (cond ((string-match "^Executing\.\.\. [0-9a-z]*$" var)
-		(concat ":executing" var))
-	       (t
-		(concat "\"" (org-babel-julia-vterm--escape-string var) "\""))))
-	(t ":somethingelse")))
+  (cond
+   ((listp value)
+    (format "\"%s\"" value))
+   ((numberp value) value)
+   ((stringp value) (or (org-babel--string-to-number value)
+			(concat "\"" (org-babel-julia-vterm--escape-string value) "\"")))
+   ((symbolp value) (org-babel-julia-vterm--escape-string (symbol-name value)))
+   (t value)))
 
 (defun org-babel-julia-vterm--check-long-line (str)
   "Return t if STR is too long for stable output in the REPL."
