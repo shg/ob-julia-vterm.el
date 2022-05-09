@@ -175,7 +175,7 @@ specifying a variable of the same value."
 			      "Output suppressed (line too long)"
 			    bs)
 			  result-params
-			  (org-babel-get-src-block-info))))))))
+			  (org-babel-get-src-block-info t))))))))
 	(queue-dequeue org-babel-julia-vterm--evaluation-queue)
 	(setq org-babel-julia-vterm--evaluation-watches
 	      (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
