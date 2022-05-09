@@ -83,6 +83,9 @@ using Logging: Logging; open(\"%s\", \"w\") do io
     logger = Logging.ConsoleLogger(io)
     try
         result = include(\"%s\")
+        if result == \"\"
+            result = \"\n\"
+        end
         print(io, result)
         result
     catch e
