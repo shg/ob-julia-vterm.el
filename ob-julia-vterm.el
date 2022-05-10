@@ -164,31 +164,40 @@ specifying a variable of the same value."
   "Return a callback function that is called when the first evaluation for SESSION is done."
   (lambda (event)
     (with-current-buffer (julia-vterm-repl-buffer session)
-      (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
-	(with-current-buffer .buf
-	  (save-excursion
-	    (goto-char .src-block-begin)
-	    (if (and (not (equal .src-block-begin .src-block-end))
-		     (or (eq (org-element-type (org-element-context)) 'src-block)
-			 (eq (org-element-type (org-element-context)) 'inline-src-block)))
-		(let ((bs (with-temp-buffer
-			    (insert-file-contents .out-file)
-			    (buffer-string)))
-		      (result-params (cdr (assq :result-params .params))))
-		  (cond ((member "file" result-params)
-			 (org-redisplay-inline-images))
-			((not (member "none" result-params))
-			 (org-babel-insert-result
-			  (if (org-babel-julia-vterm--check-long-line bs)
-			      "Output suppressed (line too long)"
-			    bs)
-			  result-params
-			  (org-babel-get-src-block-info t))))))))
-	(queue-dequeue org-babel-julia-vterm--evaluation-queue)
-	(setq org-babel-julia-vterm--evaluation-watches
-	      (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
-		      org-babel-julia-vterm--evaluation-watches))
-	(org-babel-julia-vterm--process-evaluation-queue .session t)))))
+      (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
+	       (> (queue-length org-babel-julia-vterm--evaluation-queue) 0))
+	  (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
+	    (with-current-buffer .buf
+	      (save-excursion
+		(goto-char .src-block-begin)
+		(if (and (not (equal .src-block-begin .src-block-end))
+			 (or (eq (org-element-type (org-element-context)) 'src-block)
+			     (eq (org-element-type (org-element-context)) 'inline-src-block)))
+		    (let ((bs (with-temp-buffer
+				(insert-file-contents .out-file)
+				(buffer-string)))
+			  (result-params (cdr (assq :result-params .params))))
+		      (cond ((member "file" result-params)
+			     (org-redisplay-inline-images))
+			    ((not (member "none" result-params))
+			     (org-babel-insert-result
+			      (if (org-babel-julia-vterm--check-long-line bs)
+				  "Output suppressed (line too long)"
+				(org-babel-result-cond result-params
+				  bs
+				  (org-babel-reassemble-table
+				   bs
+				   (org-babel-pick-name (cdr (assq :colname-names .params))
+							(cdr (assq :colnames .params)))
+				   (org-babel-pick-name (cdr (assq :rowname-names .params))
+							(cdr (assq :rownames .params))))))
+			      result-params
+			      (org-babel-get-src-block-info t))))))))
+	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
+	    (setq org-babel-julia-vterm--evaluation-watches
+		  (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
+			  org-babel-julia-vterm--evaluation-watches))
+	    (org-babel-julia-vterm--process-evaluation-queue .session t))))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue (session)
   "Clear the evaluation queue and watches for SESSION."
