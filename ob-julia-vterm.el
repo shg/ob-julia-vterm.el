@@ -214,49 +214,60 @@ specifying a variable of the same value."
 	       "\\(.*?\n\\)*.*#OB-JULIA-VTERM_END" "" str)))
     str))
 
+(defun org-babel-julia-vterm--process-evaluation (session)
+  "Process the evaluation queue for SESSION synchronously.
+Return the result."
+  (with-current-buffer (julia-vterm-repl-buffer session)
+    (if (not (eq (julia-vterm-repl-buffer-status) :julia))
+	"REPL is not ready"
+      (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
+	(add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
+	(julia-vterm-paste-string
+	 (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
+						 .src-file .out-file)
+	 .session)
+	(let ((c 0))
+	  (while (and (< c 100) (= 0 (file-attribute-size (file-attributes .out-file))))
+	    (sit-for 0.1)
+	    (setq c (1+ c))))
+	(queue-dequeue org-babel-julia-vterm--evaluation-queue)
+	(with-temp-buffer
+	  (insert-file-contents .out-file)
+	  (let ((bs (buffer-string)))
+	    (if (catch 'loop
+		  (dolist (line (split-string bs "\n"))
+		    (if (> (length line) 12000)
+			(throw 'loop t))))
+		"Output suppressed (line too long)"
+	      bs)))))))
+
+(defun org-babel-julia-vterm--process-evaluation-async (session)
+  "Process the evaluation queue for SESSION asynchronously.
+Always return nil."
+  (with-current-buffer (julia-vterm-repl-buffer session)
+    (if (eq (julia-vterm-repl-buffer-status) :julia)
+	(let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
+	  (unless (assoc .uuid org-babel-julia-vterm--evaluation-watches)
+	    (let ((desc (file-notify-add-watch
+			 .out-file '(change)
+			 (org-babel-julia-vterm--evaluation-completed-callback-func session))))
+	      (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
+	    (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
+	    (julia-vterm-paste-string
+	     (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
+						     .src-file .out-file)
+	     .session)))
+      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session t)))
+  nil)
+
 (defun org-babel-julia-vterm--process-evaluation-queue (session async)
   "Process the evaluation queue for SESSION."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
 	(if async
-	    (if (eq (julia-vterm-repl-buffer-status) :julia)
-		(let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
-		  (unless (assoc .uuid org-babel-julia-vterm--evaluation-watches)
-		    (let ((desc (file-notify-add-watch
-				 .out-file '(change)
-				 (org-babel-julia-vterm--evaluation-completed-callback-func session))))
-		      (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
-		    (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
-		    (julia-vterm-paste-string
-		     (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
-							     .src-file .out-file)
-		     .session))
-		  nil)
-	      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session t)
-	      nil)
-	  (if (not (eq (julia-vterm-repl-buffer-status) :julia))
-	      "REPL is not ready"
-	    (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
-	      (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
-	      (julia-vterm-paste-string
-	       (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
-						       .src-file .out-file)
-	       .session)
-	      (let ((c 0))
-		(while (and (< c 100) (= 0 (file-attribute-size (file-attributes .out-file))))
-		  (sit-for 0.1)
-		  (setq c (1+ c))))
-	      (queue-dequeue org-babel-julia-vterm--evaluation-queue)
-	      (with-temp-buffer
-		(insert-file-contents .out-file)
-		(let ((bs (buffer-string)))
-		  (if (catch 'loop
-			(dolist (line (split-string bs "\n"))
-			  (if (> (length line) 12000)
-			      (throw 'loop t))))
-		      "Output suppressed (line too long)"
-		    bs)))))))))
+	    (org-babel-julia-vterm--process-evaluation-async session)
+	  (org-babel-julia-vterm--process-evaluation session)))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
