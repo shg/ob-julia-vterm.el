@@ -62,7 +62,7 @@
 #OB-JULIA-VTERM_BEGIN %s
 using Logging: Logging; let
     out_file = \"%s\"
-    result = open(out_file, \"w\") do io
+    open(out_file, \"w\") do io
         logger = Logging.ConsoleLogger(io)
         redirect_stdout(io) do
             try
@@ -74,8 +74,15 @@ using Logging: Logging; let
             end
         end
     end
-    open(io -> println(read(io, String)), out_file)
-    result
+    result = open(io -> println(read(io, String)), out_file)
+    if result == nothing
+        open(out_file, \"a\") do io
+            print(io, \"\n\")
+        end
+        result = string(\"->\", result, \"<-\")
+    else
+        result
+    end
 end #OB-JULIA-VTERM_END\n")
      ('value "\
 #OB-JULIA-VTERM_BEGIN %s
