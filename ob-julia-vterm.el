@@ -112,6 +112,8 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name)))
 	 (var-lines (org-babel-variable-assignments:julia-vterm params))
 	 (result-params (cdr (assq :result-params params))))
+    (with-current-buffer (julia-vterm-repl-buffer session)
+      (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter))
     (org-babel-julia-vterm-evaluate (current-buffer)
 				    session
 				    (org-babel-expand-body:generic body params var-lines)
@@ -221,7 +223,6 @@ Return the result."
     (if (not (eq (julia-vterm-repl-buffer-status) :julia))
 	"REPL is not ready"
       (let-alist (queue-first org-babel-julia-vterm--evaluation-queue)
-	(add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
 	(julia-vterm-paste-string
 	 (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 						 .src-file .out-file)
@@ -252,7 +253,6 @@ Always return nil."
 			 .out-file '(change)
 			 (org-babel-julia-vterm--evaluation-completed-callback-func session))))
 	      (push (cons .uuid desc) org-babel-julia-vterm--evaluation-watches))
-	    (add-hook 'julia-vterm-repl-filter-functions #'org-babel-julia-vterm--output-filter)
 	    (julia-vterm-paste-string
 	     (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 						     .src-file .out-file)
