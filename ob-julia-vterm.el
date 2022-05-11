@@ -55,7 +55,9 @@
    (if session "" "\nend\n")))
 
 (defun org-babel-julia-vterm--make-str-to-run (uuid result-type src-file out-file)
-  "Make Julia code that load-s SRC-FILE and save-s the result to OUT-FILE, depending on RESULT-TYPE."
+  "Make Julia code that execute-s the code in SRC-FILE depending on RESULT-TYPE.
+The results are saved in OUT-FILE.  UUID is a unique id assigned
+to the evaluation."
   (format
    (pcase result-type
      ('output "\
@@ -132,9 +134,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
     str))
 
 (defun org-babel-julia-vterm--value-to-julia (value)
-  "Convert an emacs-lisp value to a julia variable.
-Converts an emacs-lisp value, VAR, into a string of julia code
-specifying a variable of the same value."
+  "Convert an emacs-lisp VALUE to a string of julia code for the value."
   (cond
    ((listp value)
     (format "\"%s\"" value))
@@ -145,7 +145,7 @@ specifying a variable of the same value."
    (t value)))
 
 (defun org-babel-julia-vterm--check-long-line (str)
-  "Return t if STR is too long for stable output in the REPL."
+  "Return t if STR is too long for stable output for org-babel result."
   (catch 'loop
     (dolist (line (split-string str "\n"))
       (if (> (length line) 12000)
@@ -155,14 +155,14 @@ specifying a variable of the same value."
 (defvar-local org-babel-julia-vterm--evaluation-watches nil)
 
 (defun org-babel-julia-vterm--add-evaluation-to-evaluation-queue (session evaluation)
-  "Add an EVALUATION of a source block to the evaluation queue for SESSION."
+  "Add an EVALUATION of a source block to SESSION's evaluation queue."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (not (queue-p org-babel-julia-vterm--evaluation-queue))
 	(setq org-babel-julia-vterm--evaluation-queue (queue-create)))
     (queue-append org-babel-julia-vterm--evaluation-queue evaluation)))
 
 (defun org-babel-julia-vterm--evaluation-completed-callback-func (session)
-  "Return a callback function that is called when the first evaluation for SESSION is done."
+  "Return a callback function to be called when the first evaluation for SESSION is completed."
   (lambda (event)
     (with-current-buffer (julia-vterm-repl-buffer session)
       (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
@@ -279,7 +279,8 @@ If ASYNC is non-nil, the next evaluation will be executed asynchronously."
 	  (org-babel-julia-vterm--process-one-evaluation session)))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
-  "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
+  "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
+BODY contains the source code to be evaluated, and PARAMS contains header arguments."
   (let ((uuid (org-id-uuid))
 	(src-file (org-babel-temp-file "julia-vterm-src-"))
 	(out-file (org-babel-temp-file "julia-vterm-out-"))
