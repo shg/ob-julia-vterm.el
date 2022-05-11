@@ -224,8 +224,8 @@ specifying a variable of the same value."
 	  str
 	(if state "" str)))))
 
-(defun org-babel-julia-vterm--process-evaluation (session)
-  "Process the evaluation queue for SESSION synchronously.
+(defun org-babel-julia-vterm--process-one-evaluation (session)
+  "Execute the first evaluation in SESSION's queue synchronously.
 Return the result."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (not (eq (julia-vterm-repl-buffer-status) :julia))
@@ -250,8 +250,8 @@ Return the result."
 		"Output suppressed (line too long)"
 	      bs)))))))
 
-(defun org-babel-julia-vterm--process-evaluation-async (session)
-  "Process the evaluation queue for SESSION asynchronously.
+(defun org-babel-julia-vterm--process-one-evaluation-async (session)
+  "Execute the first evaluation in SESSION's queue asynchronously.
 Always return nil."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (eq (julia-vterm-repl-buffer-status) :julia)
@@ -269,13 +269,14 @@ Always return nil."
   nil)
 
 (defun org-babel-julia-vterm--process-evaluation-queue (session async)
-  "Process the evaluation queue for SESSION."
+  "Process the evaluation queue for SESSION.
+If ASYNC is non-nil, the next evaluation will be executed asynchronously."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p org-babel-julia-vterm--evaluation-queue)
 	     (not (queue-empty org-babel-julia-vterm--evaluation-queue)))
 	(if async
-	    (org-babel-julia-vterm--process-evaluation-async session)
-	  (org-babel-julia-vterm--process-evaluation session)))))
+	    (org-babel-julia-vterm--process-one-evaluation-async session)
+	  (org-babel-julia-vterm--process-one-evaluation session)))))
 
 (defun org-babel-julia-vterm-evaluate (buf session body params)
   "Evaluate BODY as Julia code in a julia-vterm buffer specified with SESSION."
