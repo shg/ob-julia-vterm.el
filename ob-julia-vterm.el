@@ -79,7 +79,6 @@ using Logging: Logging; let
         open(out_file, \"a\") do io
             print(io, \"\n\")
         end
-        result = string(\"->\", result, \"<-\")
     else
         result
     end
