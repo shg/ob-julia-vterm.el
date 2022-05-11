@@ -207,13 +207,22 @@ specifying a variable of the same value."
 	(queue-clear org-babel-julia-vterm--evaluation-queue))
     (setq org-babel-julia-vterm--evaluation-watches '())))
 
+(defvar-local org-babel-julia-vterm--output-suppress-state nil)
+
 (defun org-babel-julia-vterm--output-filter (str)
-  "Remove echoed output of the pasted julia code from STR."
-  (let* ((str (replace-regexp-in-string
-	       "#OB-JULIA-VTERM_BEGIN \\([0-9a-z]*\\)\\(.*?\n\\)*.*" "Executing... \\1" str))
-	 (str (replace-regexp-in-string
-	       "\\(.*?\n\\)*.*#OB-JULIA-VTERM_END" "" str)))
-    str))
+  "Remove the pasted julia code from STR."
+  (let ((begin (string-match "#OB-JULIA-VTERM_BEGIN" str))
+	(end (string-match "#OB-JULIA-VTERM_END" str))
+	(state org-babel-julia-vterm--output-suppress-state))
+    (if begin (setq org-babel-julia-vterm--output-suppress-state t))
+    (if end (setq org-babel-julia-vterm--output-suppress-state nil))
+    (let* ((str (replace-regexp-in-string
+		 "#OB-JULIA-VTERM_BEGIN \\([0-9a-z]*\\)\\(.*?\n\\)*.*" "Executing... \\1" str))
+	   (str (replace-regexp-in-string
+		 "\\(.*?\n\\)*.*#OB-JULIA-VTERM_END" "" str)))
+      (if (or begin end)
+	  str
+	(if state "" str)))))
 
 (defun org-babel-julia-vterm--process-evaluation (session)
   "Process the evaluation queue for SESSION synchronously.
