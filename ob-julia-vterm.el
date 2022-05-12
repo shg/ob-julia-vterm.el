@@ -193,12 +193,12 @@ BODY is the contents and PARAMS are header arguments of the code block."
 				   (org-babel-pick-name (cdr (assq :rowname-names .params))
 							(cdr (assq :rownames .params))))))
 			      result-params
-			      (org-babel-get-src-block-info t))))))))
+			      (org-babel-get-src-block-info 'light))))))))
 	    (queue-dequeue org-babel-julia-vterm--evaluation-queue)
 	    (setq org-babel-julia-vterm--evaluation-watches
 		  (delete (assoc .uuid org-babel-julia-vterm--evaluation-watches)
 			  org-babel-julia-vterm--evaluation-watches))
-	    (org-babel-julia-vterm--process-evaluation-queue .session t))))))
+	    (org-babel-julia-vterm--process-evaluation-queue .session 'async))))))
 
 (defun org-babel-julia-vterm--clear-evaluation-queue (session)
   "Clear the evaluation queue and watches for SESSION."
@@ -214,7 +214,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (let ((begin (string-match "#OB-JULIA-VTERM_BEGIN" str))
 	(end (string-match "#OB-JULIA-VTERM_END" str))
 	(state org-babel-julia-vterm--output-suppress-state))
-    (if begin (setq org-babel-julia-vterm--output-suppress-state t))
+    (if begin (setq org-babel-julia-vterm--output-suppress-state 'suppress))
     (if end (setq org-babel-julia-vterm--output-suppress-state nil))
     (let* ((str (replace-regexp-in-string
 		 "#OB-JULIA-VTERM_BEGIN \\([0-9a-z]*\\)\\(.*?\n\\)*.*" "Executing... \\1" str))
@@ -265,7 +265,7 @@ Always return nil."
 	     (org-babel-julia-vterm--make-str-to-run .uuid (cdr (assq :result-type .params))
 						     .src-file .out-file)
 	     .session)))
-      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session t)))
+      (run-at-time 0.1 nil #'org-babel-julia-vterm--process-evaluation-queue session 'async)))
   nil)
 
 (defun org-babel-julia-vterm--process-evaluation-queue (session async)
