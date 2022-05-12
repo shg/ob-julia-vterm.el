@@ -200,13 +200,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 			  org-babel-julia-vterm--evaluation-watches))
 	    (org-babel-julia-vterm--process-evaluation-queue .session 'async))))))
 
-(defun org-babel-julia-vterm--clear-evaluation-queue (session)
-  "Clear the evaluation queue and watches for SESSION."
-  (with-current-buffer (julia-vterm-repl-buffer session)
-    (if (queue-p org-babel-julia-vterm--evaluation-queue)
-	(queue-clear org-babel-julia-vterm--evaluation-queue))
-    (setq org-babel-julia-vterm--evaluation-watches '())))
-
 (defvar-local org-babel-julia-vterm--output-suppress-state nil)
 
 (defun org-babel-julia-vterm--output-filter (str)
