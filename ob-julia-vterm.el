@@ -164,41 +164,43 @@ BODY is the contents and PARAMS are header arguments of the code block."
 (defun ob-julia-vterm-evaluation-completed-callback-func (session)
   "Return a callback function to be called when the first evaluation for SESSION is completed."
   (lambda (event)
-    (with-current-buffer (julia-vterm-repl-buffer session)
-      (if (and (queue-p ob-julia-vterm-evaluation-queue)
-	       (> (queue-length ob-julia-vterm-evaluation-queue) 0))
-	  (let-alist (queue-first ob-julia-vterm-evaluation-queue)
-	    (with-current-buffer .buf
-	      (save-excursion
-		(goto-char .src-block-begin)
-		(if (and (not (equal .src-block-begin .src-block-end))
-			 (or (eq (org-element-type (org-element-context)) 'src-block)
-			     (eq (org-element-type (org-element-context)) 'inline-src-block)))
-		    (let ((bs (with-temp-buffer
-				(insert-file-contents .out-file)
-				(buffer-string)))
-			  (result-params (cdr (assq :result-params .params))))
-		      (cond ((member "file" result-params)
-			     (org-redisplay-inline-images))
-			    ((not (member "none" result-params))
-			     (org-babel-insert-result
-			      (if (ob-julia-vterm-check-long-line bs)
-				  "Output suppressed (line too long)"
-				(org-babel-result-cond result-params
-				  bs
-				  (org-babel-reassemble-table
-				   bs
-				   (org-babel-pick-name (cdr (assq :colname-names .params))
-							(cdr (assq :colnames .params)))
-				   (org-babel-pick-name (cdr (assq :rowname-names .params))
-							(cdr (assq :rownames .params))))))
-			      result-params
-			      (org-babel-get-src-block-info 'light))))))))
-	    (queue-dequeue ob-julia-vterm-evaluation-queue)
-	    (setq ob-julia-vterm-evaluation-watches
-		  (delete (assoc .uuid ob-julia-vterm-evaluation-watches)
-			  ob-julia-vterm-evaluation-watches))
-	    (ob-julia-vterm-process-evaluation-queue .session 'async))))))
+    (if (eq 'changed (cadr event))
+	(with-current-buffer (julia-vterm-repl-buffer session)
+	  (if (and (queue-p ob-julia-vterm-evaluation-queue)
+		   (> (queue-length ob-julia-vterm-evaluation-queue) 0))
+	      (let-alist (queue-first ob-julia-vterm-evaluation-queue)
+		(with-current-buffer .buf
+		  (save-excursion
+		    (goto-char .src-block-begin)
+		    (if (and (not (equal .src-block-begin .src-block-end))
+			     (or (eq (org-element-type (org-element-context)) 'src-block)
+				 (eq (org-element-type (org-element-context)) 'inline-src-block)))
+			(let ((bs (with-temp-buffer
+				    (insert-file-contents .out-file)
+				    (buffer-string)))
+			      (result-params (cdr (assq :result-params .params))))
+			  (cond ((member "file" result-params)
+				 (org-redisplay-inline-images))
+				((not (member "none" result-params))
+				 (org-babel-insert-result
+				  (if (ob-julia-vterm-check-long-line bs)
+				      "Output suppressed (line too long)"
+				    (org-babel-result-cond result-params
+				      bs
+				      (org-babel-reassemble-table
+				       bs
+				       (org-babel-pick-name (cdr (assq :colname-names .params))
+							    (cdr (assq :colnames .params)))
+				       (org-babel-pick-name (cdr (assq :rowname-names .params))
+							    (cdr (assq :rownames .params))))))
+				  result-params
+				  (org-babel-get-src-block-info 'light))))))))
+		(queue-dequeue ob-julia-vterm-evaluation-queue)
+		(file-notify-rm-watch (cdr (assoc .uuid ob-julia-vterm-evaluation-watches)))
+		(setq ob-julia-vterm-evaluation-watches
+		      (delete (assoc .uuid ob-julia-vterm-evaluation-watches)
+			      ob-julia-vterm-evaluation-watches))
+		(ob-julia-vterm-process-evaluation-queue .session 'async)))))))
 
 (defvar-local ob-julia-vterm-output-suppress-state nil)
 
@@ -258,7 +260,8 @@ Always return nil."
 	     (ob-julia-vterm-make-str-to-run .uuid (cdr (assq :result-type .params))
 						     .src-file .out-file)
 	     .session)))
-      (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session 'async)))
+      (if (null ob-julia-vterm-evaluation-watches)
+	  (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session 'async))))
   nil)
 
 (defun ob-julia-vterm-process-evaluation-queue (session async)
