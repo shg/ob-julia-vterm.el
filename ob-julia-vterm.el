@@ -6,7 +6,7 @@
 ;; Maintainer: Shigeaki Nishina
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
-;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16"))
+;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16") (queue "0.2"))
 ;; Version: 0.2a
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
