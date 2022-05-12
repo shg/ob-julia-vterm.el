@@ -219,7 +219,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	  str
 	(if state "" str)))))
 
-(defun ob-julia-vterm-process-one-evaluation (session)
+(defun ob-julia-vterm-process-one-evaluation-sync (session)
   "Execute the first evaluation in SESSION's queue synchronously.
 Return the result."
   (with-current-buffer (julia-vterm-repl-buffer session)
@@ -272,7 +272,7 @@ If ASYNC is non-nil, the next evaluation will be executed asynchronously."
 	     (not (queue-empty ob-julia-vterm-evaluation-queue)))
 	(if async
 	    (ob-julia-vterm-process-one-evaluation-async session)
-	  (ob-julia-vterm-process-one-evaluation session)))))
+	  (ob-julia-vterm-process-one-evaluation-sync session)))))
 
 (defun ob-julia-vterm-evaluate (buf session body params)
   "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
