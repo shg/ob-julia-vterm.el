@@ -219,6 +219,13 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	  str
 	(if state "" str)))))
 
+(defun ob-julia-vterm-wait-for-file-change (file sec interval)
+  (let ((c 0))
+    (while (and (< c (/ sec interval))
+		(= 0 (file-attribute-size (file-attributes file))))
+      (sit-for interval)
+      (setq c (1+ c)))))
+
 (defun ob-julia-vterm-process-one-evaluation-sync (session)
   "Execute the first evaluation in SESSION's queue synchronously.
 Return the result."
@@ -230,10 +237,7 @@ Return the result."
 	 (ob-julia-vterm-make-str-to-run .uuid (cdr (assq :result-type .params))
 						 .src-file .out-file)
 	 .session)
-	(let ((c 0))
-	  (while (and (< c 100) (= 0 (file-attribute-size (file-attributes .out-file))))
-	    (sit-for 0.1)
-	    (setq c (1+ c))))
+	(ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
 	(queue-dequeue ob-julia-vterm-evaluation-queue)
 	(with-temp-buffer
 	  (insert-file-contents .out-file)
