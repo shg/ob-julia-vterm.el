@@ -212,7 +212,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
     (if begin (setq ob-julia-vterm-output-suppress-state 'suppress))
     (if end (setq ob-julia-vterm-output-suppress-state nil))
     (let* ((str (replace-regexp-in-string
-		 "#OB-JULIA-VTERM_BEGIN \\([0-9a-z]*\\)\\(.*?\n\\)*.*" "Executing... \\1" str))
+		 "#OB-JULIA-VTERM_BEGIN \\([0-9a-z]*\\)\\(.*?\n\\)*.*" "Executing... \\1\r\n" str))
 	   (str (replace-regexp-in-string
 		 "\\(.*?\n\\)*.*#OB-JULIA-VTERM_END" "" str)))
       (if (or begin end)
