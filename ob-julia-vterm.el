@@ -241,13 +241,7 @@ Return the result."
 	(queue-dequeue ob-julia-vterm-evaluation-queue)
 	(with-temp-buffer
 	  (insert-file-contents .out-file)
-	  (let ((bs (buffer-string)))
-	    (if (catch 'loop
-		  (dolist (line (split-string bs "\n"))
-		    (if (> (length line) 12000)
-			(throw 'loop t))))
-		"Output suppressed (line too long)"
-	      bs)))))))
+	(buffer-string)))))
 
 (defun ob-julia-vterm-process-one-evaluation-async (session)
   "Execute the first evaluation in SESSION's queue asynchronously.
