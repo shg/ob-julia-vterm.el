@@ -116,9 +116,9 @@ BODY is the contents and PARAMS are header arguments of the code block."
     (with-current-buffer (julia-vterm-repl-buffer session)
       (add-hook 'julia-vterm-repl-filter-functions #'ob-julia-vterm-output-filter))
     (ob-julia-vterm-evaluate (current-buffer)
-				    session
-				    (org-babel-expand-body:generic body params var-lines)
-				    params)))
+			     session
+			     (org-babel-expand-body:generic body params var-lines)
+			     params)))
 
 (defun org-babel-variable-assignments:julia-vterm (params)
   "Return list of Julia statements assigning variables based on variable-value pairs in PARAMS."
@@ -235,7 +235,7 @@ Return the result."
       (let-alist (queue-first ob-julia-vterm-evaluation-queue)
 	(julia-vterm-paste-string
 	 (ob-julia-vterm-make-str-to-run .uuid (cdr (assq :result-type .params))
-						 .src-file .out-file)
+					 .src-file .out-file)
 	 .session)
 	(ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
 	(queue-dequeue ob-julia-vterm-evaluation-queue)
@@ -256,7 +256,7 @@ Always return nil."
 	      (push (cons .uuid desc) ob-julia-vterm-evaluation-watches))
 	    (julia-vterm-paste-string
 	     (ob-julia-vterm-make-str-to-run .uuid (cdr (assq :result-type .params))
-						     .src-file .out-file)
+					     .src-file .out-file)
 	     .session)))
       (if (null ob-julia-vterm-evaluation-watches)
 	  (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session 'async))))
