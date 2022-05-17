@@ -241,7 +241,7 @@ Return the result."
 	(queue-dequeue ob-julia-vterm-evaluation-queue)
 	(with-temp-buffer
 	  (insert-file-contents .out-file)
-	(buffer-string)))))
+	  (buffer-string))))))
 
 (defun ob-julia-vterm-process-one-evaluation-async (session)
   "Execute the first evaluation in SESSION's queue asynchronously.
