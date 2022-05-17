@@ -200,7 +200,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		(setq ob-julia-vterm-evaluation-watches
 		      (delete (assoc .uuid ob-julia-vterm-evaluation-watches)
 			      ob-julia-vterm-evaluation-watches))
-		(ob-julia-vterm-process-evaluation-queue .session 'async)))))))
+		(ob-julia-vterm-process-evaluation-queue .session)))))))
 
 (defvar-local ob-julia-vterm-output-suppress-state nil)
 
@@ -259,18 +259,19 @@ Always return nil."
 					     .src-file .out-file)
 	     .session)))
       (if (null ob-julia-vterm-evaluation-watches)
-	  (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session 'async))))
+	  (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session))))
   nil)
 
-(defun ob-julia-vterm-process-evaluation-queue (session async)
+(defun ob-julia-vterm-process-evaluation-queue (session)
   "Process the evaluation queue for SESSION.
 If ASYNC is non-nil, the next evaluation will be executed asynchronously."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p ob-julia-vterm-evaluation-queue)
 	     (not (queue-empty ob-julia-vterm-evaluation-queue)))
-	(if async
-	    (ob-julia-vterm-process-one-evaluation-async session)
-	  (ob-julia-vterm-process-one-evaluation-sync session)))))
+	(let ((async (cdr (assoc 'async (queue-first ob-julia-vterm-evaluation-queue)))))
+	  (if async
+	      (ob-julia-vterm-process-one-evaluation-async session)
+	    (ob-julia-vterm-process-one-evaluation-sync session))))))
 
 (defun ob-julia-vterm-evaluate (buf session body params)
   "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
@@ -289,6 +290,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
       (ob-julia-vterm-add-evaluation-to-evaluation-queue
        session
        (list (cons 'uuid uuid)
+	     (cons 'async async)
 	     (cons 'buf buf)
 	     (cons 'session session)
 	     (cons 'params params)
@@ -296,7 +298,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 	     (cons 'out-file out-file)
 	     (cons 'src-block-begin src-block-begin)
 	     (cons 'src-block-end src-block-end))))
-    (or (ob-julia-vterm-process-evaluation-queue session async)
+    (or (ob-julia-vterm-process-evaluation-queue session)
 	(concat "Executing... " (substring uuid 0 8)))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
