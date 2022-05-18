@@ -220,7 +220,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
   (let ((c 0))
     (while (and (< c (/ sec interval))
 		(= 0 (file-attribute-size (file-attributes file))))
-      (sit-for interval)
+      (sleep-for interval)
       (setq c (1+ c)))))
 
 (defun ob-julia-vterm-process-one-evaluation-sync (session)
