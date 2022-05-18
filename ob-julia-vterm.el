@@ -124,8 +124,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
   "Return list of Julia statements assigning variables based on variable-value pairs in PARAMS."
   (mapcar
    (lambda (pair)
-     (format "%s = %s"
-	     (car pair) (ob-julia-vterm-value-to-julia (cdr pair))))
+     (format "%s = %s" (car pair) (ob-julia-vterm-value-to-julia (cdr pair))))
    (org-babel--get-vars params)))
 
 (defun ob-julia-vterm-escape-string (str)
@@ -135,8 +134,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 (defun ob-julia-vterm-value-to-julia (value)
   "Convert an emacs-lisp VALUE to a string of julia code for the value."
   (cond
-   ((listp value)
-    (format "\"%s\"" value))
+   ((listp value) (format "\"%s\"" value))
    ((numberp value) value)
    ((stringp value) (or (org-babel--string-to-number value)
 			(concat "\"" (ob-julia-vterm-escape-string value) "\"")))
@@ -144,7 +142,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
    (t value)))
 
 (defun ob-julia-vterm-check-long-line (str)
-  "Return t if STR is too long for stable output for org-babel result."
+  "Return t if STR is too long for org-babel result."
   (catch 'loop
     (dolist (line (split-string str "\n"))
       (if (> (length line) 12000)
@@ -161,7 +159,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
     (queue-append ob-julia-vterm-evaluation-queue evaluation)))
 
 (defun ob-julia-vterm-evaluation-completed-callback-func (session)
-  "Return a callback function to be called when the first evaluation for SESSION is completed."
+  "Return a callback function to be called when an evaluation in SESSION is completed."
   (lambda (event)
     (if (eq 'changed (cadr event))
 	(with-current-buffer (julia-vterm-repl-buffer session)
