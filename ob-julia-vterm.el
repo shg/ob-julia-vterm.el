@@ -130,8 +130,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 
 (defun ob-julia-vterm-escape-string (str)
   "Escape special characters in STR for Julia variable assignments."
-  (let* ((str (replace-regexp-in-string "\"" "\\\\\"" str)))
-    str))
+  (replace-regexp-in-string "\"" "\\\\\"" str))
 
 (defun ob-julia-vterm-value-to-julia (value)
   "Convert an emacs-lisp VALUE to a string of julia code for the value."
