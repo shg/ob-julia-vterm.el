@@ -223,22 +223,24 @@ BODY is the contents and PARAMS are header arguments of the code block."
       (sleep-for interval)
       (setq c (1+ c)))))
 
-(defun ob-julia-vterm-process-one-evaluation-sync (session)
+(defun ob-julia-vterm-process-one-evaluation-sync (session evaluation)
   "Execute the first evaluation in SESSION's queue synchronously.
 Return the result."
   (with-current-buffer (julia-vterm-repl-buffer session)
-    (if (not (eq (julia-vterm-repl-buffer-status) :julia))
-	"REPL is not ready"
-      (let-alist (queue-first ob-julia-vterm-evaluation-queue)
-	(julia-vterm-paste-string
-	 (ob-julia-vterm-make-str-to-run .uuid (cdr (assq :result-type .params))
-					 .src-file .out-file)
-	 .session)
-	(ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
-	(queue-dequeue ob-julia-vterm-evaluation-queue)
-	(with-temp-buffer
-	  (insert-file-contents .out-file)
-	  (buffer-string))))))
+    (while (not (eq (julia-vterm-repl-buffer-status) :julia))
+      (message "Waiting REPL becomes ready")
+      (sleep-for 0.1))
+    (let-alist evaluation
+      (julia-vterm-paste-string
+       (ob-julia-vterm-make-str-to-run .uuid
+				       (cdr (assq :result-type .params))
+				       .src-file
+				       .out-file)
+       .session)
+      (ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
+      (with-temp-buffer
+	(insert-file-contents .out-file)
+	(buffer-string)))))
 
 (defun ob-julia-vterm-process-one-evaluation-async (session)
   "Execute the first evaluation in SESSION's queue asynchronously.
@@ -247,13 +249,15 @@ Always return nil."
     (if (eq (julia-vterm-repl-buffer-status) :julia)
 	(let-alist (queue-first ob-julia-vterm-evaluation-queue)
 	  (unless (assoc .uuid ob-julia-vterm-evaluation-watches)
-	    (let ((desc (file-notify-add-watch
-			 .out-file '(change)
-			 (ob-julia-vterm-evaluation-completed-callback-func session))))
+	    (let ((desc (file-notify-add-watch .out-file
+					       '(change)
+					       (ob-julia-vterm-evaluation-completed-callback-func session))))
 	      (push (cons .uuid desc) ob-julia-vterm-evaluation-watches))
 	    (julia-vterm-paste-string
-	     (ob-julia-vterm-make-str-to-run .uuid (cdr (assq :result-type .params))
-					     .src-file .out-file)
+	     (ob-julia-vterm-make-str-to-run .uuid
+					     (cdr (assq :result-type .params))
+					     .src-file
+					     .out-file)
 	     .session)))
       (if (null ob-julia-vterm-evaluation-watches)
 	  (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session))))
@@ -265,10 +269,8 @@ If ASYNC is non-nil, the next evaluation will be executed asynchronously."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (if (and (queue-p ob-julia-vterm-evaluation-queue)
 	     (not (queue-empty ob-julia-vterm-evaluation-queue)))
-	(let ((async (cdr (assoc 'async (queue-first ob-julia-vterm-evaluation-queue)))))
-	  (if async
-	      (ob-julia-vterm-process-one-evaluation-async session)
-	    (ob-julia-vterm-process-one-evaluation-sync session))))))
+	(ob-julia-vterm-process-one-evaluation-async session)
+      (message "Queue empty"))))
 
 (defun ob-julia-vterm-evaluate (buf session body params)
   "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
@@ -283,19 +285,30 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 	  (src-block-end (make-marker)))
       (set-marker src-block-begin (org-element-property :begin elm))
       (set-marker src-block-end (org-element-property :end elm))
-      (ob-julia-vterm-add-evaluation-to-evaluation-queue
-       session
-       (list (cons 'uuid uuid)
-	     (cons 'async async)
-	     (cons 'buf buf)
-	     (cons 'session session)
-	     (cons 'params params)
-	     (cons 'src-file src-file)
-	     (cons 'out-file out-file)
-	     (cons 'src-block-begin src-block-begin)
-	     (cons 'src-block-end src-block-end))))
-    (or (ob-julia-vterm-process-evaluation-queue session)
-	(concat "Executing... " (substring uuid 0 8)))))
+      (let ((evaluation (list (cons 'uuid uuid)
+			      (cons 'async async)
+			      (cons 'buf buf)
+			      (cons 'session session)
+			      (cons 'params params)
+			      (cons 'src-file src-file)
+			      (cons 'out-file out-file)
+			      (cons 'src-block-begin src-block-begin)
+			      (cons 'src-block-end src-block-end))))
+	(if (not async)
+	    (ob-julia-vterm-process-one-evaluation-sync session evaluation)
+	  (ob-julia-vterm-add-evaluation-to-evaluation-queue
+	   session
+	   (list (cons 'uuid uuid)
+		 (cons 'async async)
+		 (cons 'buf buf)
+		 (cons 'session session)
+		 (cons 'params params)
+		 (cons 'src-file src-file)
+		 (cons 'out-file out-file)
+		 (cons 'src-block-begin src-block-begin)
+		 (cons 'src-block-end src-block-end)))
+	  (ob-julia-vterm-process-evaluation-queue session)
+	  (concat "Executing... " (substring uuid 0 8)))))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
 
