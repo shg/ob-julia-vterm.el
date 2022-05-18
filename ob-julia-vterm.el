@@ -172,20 +172,20 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		    (if (and (not (equal .src-block-begin .src-block-end))
 			     (or (eq (org-element-type (org-element-context)) 'src-block)
 				 (eq (org-element-type (org-element-context)) 'inline-src-block)))
-			(let ((bs (with-temp-buffer
-				    (insert-file-contents .out-file)
-				    (buffer-string)))
+			(let ((result (with-temp-buffer
+					(insert-file-contents .out-file)
+					(buffer-string)))
 			      (result-params (cdr (assq :result-params .params))))
 			  (cond ((member "file" result-params)
 				 (org-redisplay-inline-images))
 				((not (member "none" result-params))
 				 (org-babel-insert-result
-				  (if (ob-julia-vterm-check-long-line bs)
+				  (if (ob-julia-vterm-check-long-line result)
 				      "Output suppressed (line too long)"
 				    (org-babel-result-cond result-params
-				      bs
+				      result
 				      (org-babel-reassemble-table
-				       bs
+				       result
 				       (org-babel-pick-name (cdr (assq :colname-names .params))
 							    (cdr (assq :colnames .params)))
 				       (org-babel-pick-name (cdr (assq :rowname-names .params))
