@@ -296,17 +296,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 			      (cons 'src-block-end src-block-end))))
 	(if (not async)
 	    (ob-julia-vterm-process-one-evaluation-sync session evaluation)
-	  (ob-julia-vterm-add-evaluation-to-evaluation-queue
-	   session
-	   (list (cons 'uuid uuid)
-		 (cons 'async async)
-		 (cons 'buf buf)
-		 (cons 'session session)
-		 (cons 'params params)
-		 (cons 'src-file src-file)
-		 (cons 'out-file out-file)
-		 (cons 'src-block-begin src-block-begin)
-		 (cons 'src-block-end src-block-end)))
+	  (ob-julia-vterm-add-evaluation-to-evaluation-queue session evaluation)
 	  (ob-julia-vterm-process-evaluation-queue session)
 	  (concat "Executing... " (substring uuid 0 8)))))))
 
