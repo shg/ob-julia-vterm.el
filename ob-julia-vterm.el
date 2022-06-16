@@ -300,7 +300,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 	  (ob-julia-vterm-process-evaluation-queue session)
 	  (concat "Executing... " (substring uuid 0 8)))))))
 
-(add-to-list 'org-src-lang-modes '("julia-vterm" . "julia"))
+(add-to-list 'org-src-lang-modes '("julia-vterm" . julia))
 
 (provide 'ob-julia-vterm)
 
