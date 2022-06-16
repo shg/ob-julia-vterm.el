@@ -1,6 +1,6 @@
 ;;; ob-julia-vterm.el --- Babel Functions for Julia in VTerm -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020 Shigeaki Nishina
+;; Copyright (C) 2020-2022 Shigeaki Nishina
 
 ;; Author: Shigeaki Nishina
 ;; Maintainer: Shigeaki Nishina
