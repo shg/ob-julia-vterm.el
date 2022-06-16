@@ -30,6 +30,7 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 
 #+BEGIN_SRC emacs-lisp
 (defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm)
+(defalias 'org-babel-variable-assignments:julia 'org-babel-variable-assignments:julia-vterm)
 #+END_SRC
 
 ** Usage
