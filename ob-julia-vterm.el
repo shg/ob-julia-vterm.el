@@ -43,6 +43,7 @@
 ;;; Code:
 
 (require 'ob)
+(require 'org-id)
 (require 'queue)
 (require 'filenotify)
 (require 'julia-vterm)
