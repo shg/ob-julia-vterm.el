@@ -7,7 +7,7 @@
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
 ;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16") (queue "0.2"))
-;; Version: 0.2d
+;; Version: 0.2e
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -95,7 +95,7 @@ using Logging: Logging; open(\"%s\", \"w\") do io
         if result == \"\"
             result = \"\n\"
         end
-        print(io, result)
+        Base.invokelatest(print, io, result)
         result
     catch e
         Logging.with_logger(logger) do
