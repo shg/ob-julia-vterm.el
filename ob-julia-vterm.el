@@ -71,9 +71,7 @@ using Logging: Logging; let
             try
                 include(\"%s\")
             catch e
-                Logging.with_logger(logger) do
-                    @error e
-                end
+                showerror(logger.stream, e)
             end
         end
     end
@@ -98,10 +96,7 @@ using Logging: Logging; open(\"%s\", \"w\") do io
         Base.invokelatest(print, io, result)
         result
     catch e
-        Logging.with_logger(logger) do
-            @error e
-        end
-        e
+        showerror(logger.stream, e)
     end
 end #OB-JULIA-VTERM_END\n"))
    (substring uuid 0 8) out-file src-file))
