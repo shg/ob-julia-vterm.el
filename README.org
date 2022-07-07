@@ -6,7 +6,9 @@
 
 * ob-julia-vterm
 
-Ob-julia-vterm provides Org-babel support for Julia code blocks using julia-vterm.
+Ob-julia-vterm provides Org Babel support for Julia code blocks using julia-vterm.
+
+[[https://orgmode.org/worg/org-contrib/babel/index.html][Babel]] is a function of Emacs Org-mode that provides ability of executing code in various programming languages in Org buffers. With ob-julia-vterm, you can embed and execute Julia code and also capture the results in your Org documents.
 
 ** Installation
 
@@ -26,7 +28,7 @@ You need to enable julia-vterm code block evaluation by customizing org-babel-lo
 (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages)
 #+END_SRC
 
-By default, you need to specify ~julia-vterm~ as the language name for source blocks. To use ~julia~ as the language name, define the following alias.
+By default, you need to specify ~julia-vterm~ as the language name for source blocks. To use ~julia~ as the language name, define the following aliases.
 
 #+BEGIN_SRC emacs-lisp
 (defalias 'org-babel-execute:julia 'org-babel-execute:julia-vterm)
@@ -35,8 +37,10 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 
 ** Features
 
-- A src code block with ~julia-vterm~ (or ~julia~ if you define the above alias) specified as language will be executed in a julia-vterm REPL.
+- A src code block with ~julia-vterm~ (or ~julia~ if you define the above aliases) specified as language will be executed with ~C-c C-c~ (~org-babel-execute-src-block~). The code is sent to a julia-vterm REPL and the result is inserted below the src code block.
 - You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
+- For graphics output (plots), specify ~file~ and ~graphics~ for ~:results~ and filename with ~:file~. Then in the code block, save the output image with the filename. A link to the image is inserted as the result. It can be inline-displayed by Org.
+  - For inline display of PDF or GIF/PNG animation, see [[https://github.com/shg/org-inline-pdf.el][org-inline-pdf]] and [[https://github.com/shg/org-inline-anim.el][org-inline-anim]].
 - Session-based evaluation is supported.
   - Without ~:session~, the code block is executed inside a ~let~ block.
   - With ~:session~, the code block is executed in ~main~ session.
@@ -46,8 +50,8 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
   - Currently, only a number or a string can be passed.
   - Another code block or a result of a code block can be referred to and used as the argument.
 - Execution of julia-vterm code blocks is asynchronous by default and does not block Emacs.
-  - As an exception, if you use babel's :var reference from another block, the referenced julia-vterm block will be executed synchronously.
-  - At this time, it is not possible to explicitly instruct synchronous execution.
+  - As an exception, if you use babel's ~:var~ reference from another block, the referenced ~julia-vterm~ block will be executed synchronously.
+  - At this time, it is not possible to explicitly specify synchronous execution.
 
 *** Examples
 
