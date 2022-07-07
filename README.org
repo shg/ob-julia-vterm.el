@@ -33,7 +33,7 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 (defalias 'org-babel-variable-assignments:julia 'org-babel-variable-assignments:julia-vterm)
 #+END_SRC
 
-** Usage
+** Features
 
 - A src code block with ~julia-vterm~ (or ~julia~ if you define the above alias) specified as language will be executed in a julia-vterm REPL.
 - You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
@@ -45,6 +45,9 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 - Passing code block arguments using ~:var~ is supported.
   - Currently, only a number or a string can be passed.
   - Another code block or a result of a code block can be referred to and used as the argument.
+- Execution of julia-vterm code blocks is asynchronous by default and does not block Emacs.
+  - As an exception, if you use babel's :var reference from another block, the referenced julia-vterm block will be executed synchronously.
+  - At this time, it is not possible to explicitly instruct synchronous execution.
 
 *** Examples
 
