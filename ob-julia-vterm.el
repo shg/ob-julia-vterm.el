@@ -96,7 +96,9 @@ using Logging: Logging; open(\"%s\", \"w\") do io
         Base.invokelatest(print, io, result)
         result
     catch e
-        showerror(logger.stream, e)
+        msg = sprint(showerror, e)
+        println(logger.stream, msg)
+        println(msg)
     end
 end #OB-JULIA-VTERM_END\n"))
    (substring uuid 0 8) out-file src-file))
