@@ -215,6 +215,8 @@ BODY is the contents and PARAMS are header arguments of the code block."
 	(if state "" str)))))
 
 (defun ob-julia-vterm-wait-for-file-change (file sec interval)
+  "Wait up to SEC seconds synchronously until FILE becomes non-empty.
+The file is checked at INTERVAL second intervals while waiting."
   (let ((c 0))
     (while (and (< c (/ sec interval))
 		(= 0 (file-attribute-size (file-attributes file))))
