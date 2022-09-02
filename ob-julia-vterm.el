@@ -7,7 +7,7 @@
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
 ;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16") (queue "0.2"))
-;; Version: 0.2f
+;; Version: 0.2g
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -55,15 +55,15 @@
    body
    (if session "" "\nend\n")))
 
-(defun ob-julia-vterm-make-str-to-run (uuid result-type src-file out-file)
-  "Make Julia code that execute-s the code in SRC-FILE depending on RESULT-TYPE.
+(defun ob-julia-vterm-make-str-to-run (uuid params src-file out-file)
+  "Make Julia code that execute-s the code in SRC-FILE depending on PARAMS.
 The results are saved in OUT-FILE.  UUID is a unique id assigned
 to the evaluation."
   (format
-   (pcase result-type
+   (pcase (cdr (assq :result-type params))
      ('output "\
 #OB-JULIA-VTERM_BEGIN %s
-using Logging: Logging; let
+import Logging; let
     out_file = \"%s\"
     open(out_file, \"w\") do io
         logger = Logging.ConsoleLogger(io)
@@ -86,14 +86,21 @@ using Logging: Logging; let
 end #OB-JULIA-VTERM_END\n")
      ('value "\
 #OB-JULIA-VTERM_BEGIN %s
-using Logging: Logging; open(\"%s\", \"w\") do io
+import Logging; open(\"%s\", \"w\") do io
     logger = Logging.ConsoleLogger(io)
     try
         result = include(\"%s\")
-        if result == \"\"
-            result = \"\n\"
+        if %s
+            if isdefined(Main, :PrettyPrinting) && isdefined(PrettyPrinting, :pprint) ||
+               \"PrettyPrinting\" in [p.name for p in values(Pkg.dependencies())]
+                @eval import PrettyPrinting
+                Base.invokelatest(PrettyPrinting.pprint, io, result)
+            else
+                Base.invokelatest(print, io, result)
+            end
+        else
+            Base.invokelatest(show, io, MIME(\"text/plain\"), result)
         end
-        Base.invokelatest(print, io, result)
         result
     catch e
         msg = sprint(showerror, e)
@@ -101,7 +108,8 @@ using Logging: Logging; open(\"%s\", \"w\") do io
         println(msg)
     end
 end #OB-JULIA-VTERM_END\n"))
-   (substring uuid 0 8) out-file src-file))
+   (substring uuid 0 8) out-file src-file
+   (if (member "pp" (cdr (assq :result-params params))) "true" "false")))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
@@ -234,7 +242,7 @@ Return the result."
     (let-alist evaluation
       (julia-vterm-paste-string
        (ob-julia-vterm-make-str-to-run .uuid
-				       (cdr (assq :result-type .params))
+				       .params
 				       .src-file
 				       .out-file)
        .session)
@@ -256,7 +264,7 @@ Always return nil."
 	      (push (cons .uuid desc) ob-julia-vterm-evaluation-watches))
 	    (julia-vterm-paste-string
 	     (ob-julia-vterm-make-str-to-run .uuid
-					     (cdr (assq :result-type .params))
+					     .params
 					     .src-file
 					     .out-file)
 	     .session)))
