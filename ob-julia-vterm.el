@@ -7,7 +7,7 @@
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
 ;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16") (queue "0.2"))
-;; Version: 0.2g
+;; Version: 0.2h
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -99,7 +99,11 @@ import Logging; open(\"%s\", \"w\") do io
                 Base.invokelatest(print, io, result)
             end
         else
-            Base.invokelatest(show, io, MIME(\"text/plain\"), result)
+            if %s
+                Base.invokelatest(show, io, \"text/plain\", result)
+            else
+                Base.invokelatest(show, IOContext(io, :limit => true), \"text/plain\", result)
+            end
         end
         result
     catch e
@@ -109,7 +113,8 @@ import Logging; open(\"%s\", \"w\") do io
     end
 end #OB-JULIA-VTERM_END\n"))
    (substring uuid 0 8) out-file src-file
-   (if (member "pp" (cdr (assq :result-params params))) "true" "false")))
+   (if (member "pp" (cdr (assq :result-params params))) "true" "false")
+   (if (member "nolimit" (cdr (assq :result-params params))) "true" "false")))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
