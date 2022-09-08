@@ -6,9 +6,9 @@
 
 * ob-julia-vterm
 
-Ob-julia-vterm provides Org Babel support for Julia code blocks using julia-vterm.
+Ob-julia-vterm provides Org Babel support for [[https://julialang.org/][the Julia Programming Language]].
 
-[[https://orgmode.org/worg/org-contrib/babel/index.html][Babel]] is a function of Emacs Org-mode that provides ability of executing code in various programming languages in Org buffers. With ob-julia-vterm, you can embed and execute Julia code and also capture the results in your Org documents.
+[[https://orgmode.org/worg/org-contrib/babel/index.html][Babel]] is a function of the Emacs Org-mode that provides ability of executing code in various programming languages in Org buffers. With ob-julia-vterm, you can embed and execute Julia code and also capture the results in your Org documents.
 
 ** Installation
 
@@ -39,6 +39,8 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
 
 - A src code block with ~julia-vterm~ (or ~julia~ if you define the above aliases) specified as language will be executed with ~C-c C-c~ (~org-babel-execute-src-block~). The code is sent to a julia-vterm REPL and the result is inserted below the src code block.
 - You can specify ~value~ (functional mode, default) or ~output~ (scripting mode) for ~:results~.
+- The results in ~value~ mode are formatted as ~text/plain~ MIME type as in the REPL. To have the results in source code format, specify ~pp~ in the ~:results~ header argument.
+- Long Arrays in ~value~ results are truncated using ellipses by default. To show the full result without omission, specify ~nolimit~ in the ~:results~ header argument.
 - For graphics output (plots), specify ~file~ and ~graphics~ for ~:results~ and filename with ~:file~. Then in the code block, save the output image with the filename. A link to the image is inserted as the result. It can be inline-displayed by Org.
   - For inline display of PDF or GIF/PNG animation, see [[https://github.com/shg/org-inline-pdf.el][org-inline-pdf]] and [[https://github.com/shg/org-inline-anim.el][org-inline-anim]].
 - Session-based evaluation is supported.
