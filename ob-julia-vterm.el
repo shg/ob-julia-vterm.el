@@ -71,7 +71,7 @@ import Logging; let
             try
                 include(\"%s\")
             catch e
-                showerror(logger.stream, e)
+                showerror(logger.stream, e, catch_backtrace())
             end
         end
     end
@@ -107,7 +107,7 @@ import Logging; open(\"%s\", \"w\") do io
         end
         result
     catch e
-        msg = sprint(showerror, e)
+        msg = sprint(showerror, e, catch_backtrace())
         println(logger.stream, msg)
         println(msg)
     end
