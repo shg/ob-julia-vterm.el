@@ -1,4 +1,4 @@
-;;; ob-julia-vterm.el --- Babel Functions for Julia in VTerm -*- lexical-binding: t -*-
+;;; ob-julia-vterm.el --- Babel functions for Julia that work with julia-vterm -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020-2022 Shigeaki Nishina
 
@@ -7,7 +7,7 @@
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
 ;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16") (queue "0.2"))
-;; Version: 0.2h
+;; Version: 0.2i
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
