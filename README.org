@@ -100,7 +100,7 @@ x
 ,#+END_SRC
 
 ,#+BEGIN_SRC julia :results value :var r = radius
-"The area of the circle with radius of $r is $(π * r ^ 2)."
+"The area of a circle with radius of $r is $(π * r ^ 2)."
 ,#+END_SRC
 
 ,#+RESULTS:
