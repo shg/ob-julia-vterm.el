@@ -70,8 +70,9 @@ import Logging; let
         redirect_stdout(io) do
             try
                 include(\"%s\")
+                # %s %s
             catch e
-                showerror(logger.stream, e, catch_backtrace())
+                showerror(logger.stream, e, %s)
             end
         end
     end
@@ -107,14 +108,15 @@ import Logging; open(\"%s\", \"w\") do io
         end
         result
     catch e
-        msg = sprint(showerror, e, catch_backtrace())
+        msg = sprint(showerror, e, %s)
         println(logger.stream, msg)
         println(msg)
     end
 end #OB-JULIA-VTERM_END\n"))
    (substring uuid 0 8) out-file src-file
    (if (member "pp" (cdr (assq :result-params params))) "true" "false")
-   (if (member "nolimit" (cdr (assq :result-params params))) "true" "false")))
+   (if (member "nolimit" (cdr (assq :result-params params))) "true" "false")
+   (if (not (member (cdr (assq :debug params)) '(nil "no"))) "catch_backtrace()" "")))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
