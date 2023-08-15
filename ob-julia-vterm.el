@@ -291,10 +291,12 @@ If ASYNC is non-nil, the next evaluation will be executed asynchronously."
 (defun ob-julia-vterm-evaluate (buf session body params)
   "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
 BODY contains the source code to be evaluated, and PARAMS contains header arguments."
-  (let ((uuid (org-id-uuid))
-	(src-file (org-babel-temp-file "julia-vterm-src-"))
-	(out-file (org-babel-temp-file "julia-vterm-out-"))
-	(async (not (member "silent" (cdr (assq :result-params params))))))
+  (let* ((uuid (org-id-uuid))
+	 (src-file (org-babel-temp-file "julia-vterm-src-"))
+	 (out-file (org-babel-temp-file "julia-vterm-out-"))
+	 (result-params (cdr (assq :result-params params)))
+	 (async (not (or (member "silent" result-params)
+			 (member "none" result-params)))))
     (with-temp-file src-file (insert (ob-julia-vterm-wrap-body session body)))
     (let ((elm (org-element-context))
 	  (src-block-begin (make-marker))
