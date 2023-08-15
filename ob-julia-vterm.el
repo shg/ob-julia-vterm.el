@@ -240,7 +240,7 @@ The file is checked at INTERVAL second intervals while waiting."
       (setq c (1+ c)))))
 
 (defun ob-julia-vterm-process-one-evaluation-sync (session evaluation)
-  "Execute the first evaluation in SESSION's queue synchronously.
+  "Execute the first EVALUATION in SESSION's queue synchronously.
 Return the result."
   (with-current-buffer (julia-vterm-repl-buffer session)
     (while (not (eq (julia-vterm-repl-buffer-status) :julia))
