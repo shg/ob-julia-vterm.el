@@ -188,7 +188,7 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		      (ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
 		      (let ((result (with-temp-buffer
 				      (insert-file-contents .out-file)
-				      (buffer-string)))
+				      (replace-regexp-in-string "\n\\'" "" (buffer-string))))
 			    (result-params (cdr (assq :result-params .params))))
 			(cond ((member "file" result-params)
 			       (org-redisplay-inline-images))
@@ -237,7 +237,8 @@ The file is checked at INTERVAL second intervals while waiting."
     (while (and (< c (/ sec interval))
 		(= 0 (file-attribute-size (file-attributes file))))
       (sleep-for interval)
-      (setq c (1+ c)))))
+      (setq c (1+ c))))
+  (sleep-for 0.1))
 
 (defun ob-julia-vterm-process-one-evaluation-sync (session evaluation)
   "Execute the first EVALUATION in SESSION's queue synchronously.
