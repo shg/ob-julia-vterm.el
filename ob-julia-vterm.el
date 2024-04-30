@@ -185,7 +185,6 @@ BODY is the contents and PARAMS are header arguments of the code block."
 		    (when (and (not (equal .src-block-begin .src-block-end))
 			       (or (eq (org-element-type (org-element-context)) 'src-block)
 				   (eq (org-element-type (org-element-context)) 'inline-src-block)))
-		      (ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
 		      (let ((result (with-temp-buffer
 				      (insert-file-contents .out-file)
 				      (buffer-string)))
