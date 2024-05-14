@@ -374,7 +374,9 @@ With prefix ARG, prompt for session name."
   "A minor mode for Org buffer with julia-vterm source code blocks."
   :init-value nil
   :lighter " ⁂"
-  :keymap ob-julia-vterm-helper-mode-map)
+  :keymap ob-julia-vterm-helper-mode-map
+  (unless (eq major-mode 'org-mode)
+    (user-error "Cannot use `ob-julia-vterm-helper-mode' outside Org mode")))
 
 (unless (fboundp 'julia-helper-mode)
   (defalias 'julia-helper-mode 'ob-julia-vterm-helper-mode))
