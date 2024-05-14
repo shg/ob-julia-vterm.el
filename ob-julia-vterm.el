@@ -1,13 +1,13 @@
 ;;; ob-julia-vterm.el --- Babel functions for Julia that work with julia-vterm -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2023 Shigeaki Nishina
+;; Copyright (C) 2020-2024 Shigeaki Nishina
 
 ;; Author: Shigeaki Nishina
 ;; Maintainer: Shigeaki Nishina
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
-;; Package-Requires: ((emacs "26.1") (julia-vterm "0.16") (queue "0.2"))
-;; Version: 0.4
+;; Package-Requires: ((emacs "26.1") (julia-vterm "0.25") (queue "0.2"))
+;; Version: 0.5
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -244,7 +244,7 @@ The file is checked at INTERVAL second intervals while waiting."
   "Execute the first EVALUATION in SESSION's queue synchronously.
 Return the result."
   (with-current-buffer (julia-vterm-repl-buffer session)
-    (while (not (eq (julia-vterm-repl-buffer-status) :julia))
+    (while (not (eq (julia-vterm-repl-prompt-status) :julia))
       (message "Waiting REPL becomes ready")
       (sleep-for 0.1))
     (let-alist evaluation
@@ -263,7 +263,7 @@ Return the result."
   "Execute the first evaluation in SESSION's queue asynchronously.
 Always return nil."
   (with-current-buffer (julia-vterm-repl-buffer session)
-    (if (eq (julia-vterm-repl-buffer-status) :julia)
+    (if (eq (julia-vterm-repl-prompt-status) :julia)
 	(let-alist (queue-first ob-julia-vterm-evaluation-queue)
 	  (unless (assoc .uuid ob-julia-vterm-evaluation-watches)
 	    (let ((desc (file-notify-add-watch .out-file
