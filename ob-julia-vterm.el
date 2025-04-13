@@ -324,40 +324,32 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 ;;----------------------------------------------------------------------
 ;; A helper minor mode for Org buffer with julia-vterm source code blocks.
 
-(defun ob-julia-vterm-find-rest (elm lst)
-  (cond ((null lst) nil)
-        ((equal elm (car lst)) lst)
-        (t (ob-julia-vterm-find-rest elm (cdr lst)))))
-
 (defun ob-julia-vterm-session ()
+  "Return julia-vterm session name for the current src block."
   (interactive)
   (or (if-let ((src-block-info (org-babel-get-src-block-info))
                (block-ses (assoc :session (caddr src-block-info))))
           (cdr block-ses))
       (if-let ((props (org-entry-get-with-inheritance "header-args:julia"))
                (header-args (split-string props)))
-          (cadr (ob-julia-vterm-find-rest ":session" header-args)))
+          (cadr (member ":session" header-args)))
       "main"))
 
 (defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
+  "Return the paired REPL buffer for the current src block.
+If SESSION-NAME is specified, return the REPL buffer for that session."
   (julia-vterm-repl-buffer (or session-name (ob-julia-vterm-session))))
 
 (defun ob-julia-vterm-switch-to-repl-buffer (&optional arg)
   "Switch to the paired REPL buffer or to the one with a specified session.
 With prefix ARG, prompt for session name."
   (interactive "P")
-  (let* ((session-name
-	  (cond ((null arg) nil)
-		(t (completing-read "Session name: " (julia-vterm-repl-list-sessions) nil nil nil nil
-				    (julia-vterm-repl-session-name (julia-vterm-fellow-repl-buffer))))))
-	 (script-buffer (current-buffer))
-	 (repl-buffer (ob-julia-vterm-fellow-repl-buffer session-name)))
-    (setq julia-vterm-fellow-repl-buffer repl-buffer)
-    (with-current-buffer repl-buffer
-      (setq julia-vterm-repl-script-buffer script-buffer)
-      (switch-to-buffer-other-window repl-buffer))))
+  (let ((session-name (cond ((null arg) nil)
+                            (t (julia-vterm-ask-session)))))
+    (julia-vterm-switch-to (ob-julia-vterm-fellow-repl-buffer session-name))))
 
 (defun ob-julia-vterm-send-region-or-current-line ()
+  "Send the content of the region if the region is active, or the current line."
   (interactive)
   (julia-vterm-send-region-or-current-line))
 
