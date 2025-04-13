@@ -325,14 +325,25 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 ;; A helper minor mode for Org buffer with julia-vterm source code blocks.
 
 (defun ob-julia-vterm-session ()
-  "Return julia-vterm session name for the current src block."
-  (interactive)
-  (or (if-let ((src-block-info (org-babel-get-src-block-info))
-               (block-ses (assoc :session (caddr src-block-info))))
-          (cdr block-ses))
-      (if-let ((props (org-entry-get-with-inheritance "header-args:julia"))
-               (header-args (split-string props)))
-          (cadr (member ":session" header-args)))
+  "Return julia-vterm session name.
+The session name is determined in the following order:
+1. If the current buffer is a source code block and the block has
+   a session name, return that session name.  Exceptionally, if
+   the specified session name is `none', return `main'.
+2. If the variable `julia-vterm-fellow-repl-buffer' contains an active
+   buffer, return the session name of that buffer.
+3. If the current buffer has a header argument `:session', return
+   that session name.
+4. Otherwise, return `main'."
+  (or (when-let* ((src-block-info (org-babel-get-src-block-info))
+                  (block-ses (assoc :session (caddr src-block-info))))
+        (let ((session-name (cdr block-ses)))
+          (if (equal session-name "none") "main" session-name)))
+      (when (buffer-live-p julia-vterm-fellow-repl-buffer)
+        (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer))
+      (when-let* ((props (org-entry-get-with-inheritance "header-args:julia"))
+                  (header-args (split-string props)))
+        (cadr (member ":session" header-args)))
       "main"))
 
 (defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
