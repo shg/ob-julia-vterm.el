@@ -1,13 +1,13 @@
 ;;; ob-julia-vterm.el --- Babel functions for Julia that work with julia-vterm -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2024 Shigeaki Nishina
+;; Copyright (C) 2020-2025 Shigeaki Nishina
 
 ;; Author: Shigeaki Nishina
 ;; Maintainer: Shigeaki Nishina
 ;; Created: October 31, 2020
 ;; URL: https://github.com/shg/ob-julia-vterm.el
-;; Package-Requires: ((emacs "26.1") (julia-vterm "0.25") (queue "0.2"))
-;; Version: 0.5
+;; Package-Requires: ((emacs "26.1") (julia-vterm "0.26") (queue "0.2"))
+;; Version: 0.6
 ;; Keywords: julia, org, outlines, literate programming, reproducible research
 
 ;; This file is not part of GNU Emacs.
@@ -319,6 +319,71 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 	  (concat "Executing... " (substring uuid 0 8)))))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . julia))
+
+
+;;----------------------------------------------------------------------
+;; A helper minor mode for Org buffer with julia-vterm source code blocks.
+
+(defun ob-julia-vterm-session ()
+  "Return julia-vterm session name.
+The session name is determined in the following order:
+1. If the current buffer is a source code block and the block has
+   a session name, return that session name.  Exceptionally, if
+   the specified session name is `none', return `main'.
+2. If the variable `julia-vterm-fellow-repl-buffer' contains an active
+   buffer, return the session name of that buffer.
+3. If the current buffer has a header argument `:session', return
+   that session name.
+4. Otherwise, return `main'."
+  (or (when-let* ((src-block-info (org-babel-get-src-block-info))
+                  (block-ses (assoc :session (caddr src-block-info))))
+        (let ((session-name (cdr block-ses)))
+          (if (equal session-name "none") "main" session-name)))
+      (when (buffer-live-p julia-vterm-fellow-repl-buffer)
+        (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer))
+      (when-let* ((props (org-entry-get-with-inheritance "header-args:julia"))
+                  (header-args (split-string props)))
+        (cadr (member ":session" header-args)))
+      "main"))
+
+(defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
+  "Return the paired REPL buffer for the current src block.
+If SESSION-NAME is specified, return the REPL buffer for that session."
+  (julia-vterm-repl-buffer (or session-name (ob-julia-vterm-session))))
+
+(defun ob-julia-vterm-switch-to-repl-buffer (&optional arg)
+  "Switch to the paired REPL buffer or to the one with a specified session.
+With prefix ARG, prompt for session name."
+  (interactive "P")
+  (let ((session-name (cond ((null arg) nil)
+                            (t (julia-vterm-ask-session)))))
+    (julia-vterm-switch-to (ob-julia-vterm-fellow-repl-buffer session-name))))
+
+(defun ob-julia-vterm-send-region-or-current-line ()
+  "Send the content of the region if the region is active, or the current line."
+  (interactive)
+  (julia-vterm-send-region-or-current-line))
+
+(defvar ob-julia-vterm-helper-mode-map
+  (let ((map (copy-keymap julia-vterm-mode-map)))
+    (define-key map (kbd "C-c C-z") #'ob-julia-vterm-switch-to-repl-buffer)
+    (define-key map (kbd "C-<return>") #'ob-julia-vterm-send-region-or-current-line)
+    (define-key map (kbd "C-c C-b") #'org-babel-execute-buffer)
+    (define-key map (kbd "C-c C-i") nil t)
+    map))
+
+;;;###autoload
+(define-minor-mode ob-julia-vterm-helper-mode
+  "A minor mode for Org buffer with julia-vterm source code blocks."
+  :init-value nil
+  :lighter " ⁂"
+  :keymap ob-julia-vterm-helper-mode-map
+  (unless (eq major-mode 'org-mode)
+    (user-error "Cannot use `ob-julia-vterm-helper-mode' outside Org mode")))
+
+(unless (fboundp 'julia-helper-mode)
+  (defalias 'julia-helper-mode 'ob-julia-vterm-helper-mode))
+
 
 (provide 'ob-julia-vterm)
 
