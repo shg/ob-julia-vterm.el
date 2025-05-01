@@ -65,7 +65,7 @@ to the evaluation."
 #OB-JULIA-VTERM_BEGIN %s
 import Logging; let
     out_file = \"%s\"
-    open(out_file, \"w\") do io
+    open(out_file, \"a\") do io
         logger = Logging.ConsoleLogger(io)
         redirect_stdout(io) do
             try
@@ -87,7 +87,7 @@ import Logging; let
 end #OB-JULIA-VTERM_END\n")
      ('value "\
 #OB-JULIA-VTERM_BEGIN %s
-import Logging; open(\"%s\", \"w\") do io
+import Logging; open(\"%s\", \"a\") do io
     logger = Logging.ConsoleLogger(io)
     try
         result = include(\"%s\")
