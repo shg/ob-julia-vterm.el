@@ -91,19 +91,21 @@ import Logging; open(\"%s\", \"w\") do io
     logger = Logging.ConsoleLogger(io)
     try
         result = include(\"%s\")
-        if %s
-            if isdefined(Main, :PrettyPrinting) && isdefined(PrettyPrinting, :pprint) ||
-               \"PrettyPrinting\" in [p.name for p in values(Pkg.dependencies())]
-                @eval import PrettyPrinting
-                Base.invokelatest(PrettyPrinting.pprint, io, result)
-            else
-                Base.invokelatest(print, io, result)
-            end
-        else
-            if %s
+        if result == \"\"
+            result = \"\n\"
+        end
+        pp = %s; nolimit = %s
+        if pp
+            if nolimit
                 Base.invokelatest(show, io, \"text/plain\", result)
             else
                 Base.invokelatest(show, IOContext(io, :limit => true), \"text/plain\", result)
+            end
+        else
+            if nolimit
+                Base.invokelatest(print, io, result)
+            else
+                Base.invokelatest(print, IOContext(io, :limit => true), result)
             end
         end
         result
@@ -154,12 +156,13 @@ BODY is the contents and PARAMS are header arguments of the code block."
    ((symbolp value) (ob-julia-vterm-escape-string (symbol-name value)))
    (t value)))
 
-(defun ob-julia-vterm-check-long-line (str)
-  "Return t if STR is too long for org-babel result."
-  (catch 'loop
-    (dolist (line (split-string str "\n"))
-      (if (> (length line) 12000)
-	  (throw 'loop t)))))
+(defun ob-julia-vterm-check-long-line (value)
+  "Return t if VALUE is too long for org-babel result."
+  (let ((str (prin1-to-string value)))
+    (catch 'loop
+      (dolist (line (split-string str "\n"))
+	(if (> (length line) 12000)
+	    (throw 'loop t))))))
 
 (defvar-local ob-julia-vterm-evaluation-queue nil)
 (defvar-local ob-julia-vterm-evaluation-watches nil)
