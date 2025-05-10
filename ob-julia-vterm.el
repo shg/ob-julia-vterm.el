@@ -50,10 +50,11 @@
 
 (defun ob-julia-vterm-wrap-body (session body)
   "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
-  (concat
-   (if session "" "let\n")
-   body
-   (if session "" "\nend\n")))
+  (let ((no-session (string= session "none")))
+    (concat
+     (if no-session "let\n" "")
+     body
+     (if no-session "\nend\n" ""))))
 
 (defun ob-julia-vterm-make-str-to-run (uuid params src-file out-file stdin)
   "Make Julia code that execute-s the code in SRC-FILE depending on PARAMS.
@@ -129,8 +130,8 @@ end #OB-JULIA-VTERM_END\n"))
   "Execute a block of Julia code with Babel.
 This function is called by `org-babel-execute-src-block'.
 BODY is the contents and PARAMS are header arguments of the code block."
-  (let* ((session-name (cdr (assq :session params)))
-	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name)))
+  (let* ((session (or (cdr (assq :session params))
+		      (ob-julia-vterm-session)))
 	 (var-lines (org-babel-variable-assignments:julia-vterm params))
 	 (result-params (cdr (assq :result-params params))))
     (with-current-buffer (julia-vterm-repl-buffer session)
@@ -343,32 +344,32 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 ;;----------------------------------------------------------------------
 ;; A helper minor mode for Org buffer with julia-vterm source code blocks.
 
-(defun ob-julia-vterm-session ()
+(defun ob-julia-vterm-session (&optional consider-fellow)
   "Return julia-vterm session name.
 The session name is determined in the following order:
-1. If the current buffer is a source code block and the block has
+1. If the point is in a source code block and the block has
    a session name, return that session name.  Exceptionally, if
    the specified session name is `none', return `main'.
-2. If the variable `julia-vterm-fellow-repl-buffer' contains an active
-   buffer, return the session name of that buffer.
+2. If CONSIDER-FELLOW is non-nil and the variable
+   `julia-vterm-fellow-repl-buffer' contains an active buffer,
+   return the session name of that buffer.
 3. If the current buffer has a header argument `:session', return
    that session name.
 4. Otherwise, return `main'."
   (or (when-let* ((src-block-info (org-babel-get-src-block-info))
-                  (block-ses (assoc :session (caddr src-block-info))))
-        (let ((session-name (cdr block-ses)))
-          (if (equal session-name "none") "main" session-name)))
-      (when (buffer-live-p julia-vterm-fellow-repl-buffer)
-        (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer))
+		  (block-ses (assoc :session (caddr src-block-info))))
+	(cdr block-ses))
+      (when (and consider-fellow (buffer-live-p julia-vterm-fellow-repl-buffer))
+	(julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer))
       (when-let* ((props (org-entry-get-with-inheritance "header-args:julia"))
-                  (header-args (split-string props)))
-        (cadr (member ":session" header-args)))
+		  (header-args (split-string props)))
+	(cadr (member ":session" header-args)))
       "main"))
 
 (defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
   "Return the paired REPL buffer for the current src block.
 If SESSION-NAME is specified, return the REPL buffer for that session."
-  (julia-vterm-repl-buffer (or session-name (ob-julia-vterm-session))))
+  (julia-vterm-repl-buffer (or session-name (ob-julia-vterm-session t))))
 
 (defun ob-julia-vterm-switch-to-repl-buffer (&optional arg)
   "Switch to the paired REPL buffer or to the one with a specified session.
