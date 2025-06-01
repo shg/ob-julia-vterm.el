@@ -48,13 +48,12 @@
 (require 'filenotify)
 (require 'julia-vterm)
 
-(defun ob-julia-vterm-wrap-body (session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
-  (let ((no-session (string= session "none")))
-    (concat
-     (if no-session "let\n" "")
-     body
-     (if no-session "\nend\n" ""))))
+(defun ob-julia-vterm-wrap-body (use-let body)
+  "Make Julia code that execute-s BODY and obtains the results, depending on USE-LET."
+  (concat
+   (if use-let "let\n" "")
+   body
+   (if use-let "\nend\n" "")))
 
 (defun ob-julia-vterm-make-str-to-run (uuid params src-file out-file stdin)
   "Make Julia code that execute-s the code in SRC-FILE depending on PARAMS.
@@ -131,12 +130,14 @@ end #OB-JULIA-VTERM_END\n"))
 This function is called by `org-babel-execute-src-block'.
 BODY is the contents and PARAMS are header arguments of the code block."
   (let* ((session (ob-julia-vterm-session))
+         (use-let (ob-julia-vterm-session-none-p))
 	 (var-lines (org-babel-variable-assignments:julia-vterm params))
 	 (result-params (cdr (assq :result-params params))))
     (with-current-buffer (julia-vterm-repl-buffer session)
       (add-hook 'julia-vterm-repl-filter-functions #'ob-julia-vterm-output-filter))
     (ob-julia-vterm-evaluate (current-buffer)
 			     session
+                             use-let
 			     (org-babel-expand-body:generic body params var-lines)
 			     params)))
 
@@ -299,9 +300,10 @@ If ASYNC is non-nil, the next evaluation will be executed asynchronously."
 	(ob-julia-vterm-process-one-evaluation-async session)
       (message "Queue empty"))))
 
-(defun ob-julia-vterm-evaluate (buf session body params)
+(defun ob-julia-vterm-evaluate (buf session use-let body params)
   "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
-BODY contains the source code to be evaluated, and PARAMS contains header arguments."
+BODY contains the source code to be evaluated, and PARAMS contains header arguments.
+With non-nil USE-LET, the code will be executed in a `let' block"
   (let* ((uuid (org-id-uuid))
 	 (src-file (org-babel-temp-file "julia-vterm-src-"))
 	 (out-file (org-babel-temp-file "julia-vterm-out-"))
@@ -315,7 +317,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 		      tmp))))
 	 (async (not (or (eq (org-element-type (org-element-context)) 'babel-call)
 			 (member 'org-babel-ref-resolve (mapcar #'cadr (backtrace-frames)))))))
-    (with-temp-file src-file (insert (ob-julia-vterm-wrap-body session body)))
+    (with-temp-file src-file (insert (ob-julia-vterm-wrap-body use-let body)))
     (let ((elm (org-element-context))
 	  (src-block-begin (make-marker))
 	  (src-block-end (make-marker)))
@@ -369,6 +371,13 @@ The returned alist has three keys, block-ses, fellow-ses, and file-ses."
                 .file-ses
               "main"))
       .block-ses)))
+
+(defun ob-julia-vterm-session-none-p ()
+  "Return whether the block should be executed in let block."
+  (let-alist (ob-julia-vterm-session-context)
+    (if .block-ses
+        (string= .block-ses "none")
+      (string= .file-ses "none"))))
 
 (defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
   "Return the paired REPL buffer for the current src block.
