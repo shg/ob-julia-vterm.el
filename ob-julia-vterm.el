@@ -48,12 +48,12 @@
 (require 'filenotify)
 (require 'julia-vterm)
 
-(defun ob-julia-vterm-wrap-body (session body)
-  "Make Julia code that execute-s BODY and obtains the results, depending on SESSION."
+(defun ob-julia-vterm-wrap-body (use-let body)
+  "Make Julia code that execute-s BODY and obtains the results, depending on USE-LET."
   (concat
-   (if session "" "let\n")
+   (if use-let "let\n" "")
    body
-   (if session "" "\nend\n")))
+   (if use-let "\nend\n" "")))
 
 (defun ob-julia-vterm-make-str-to-run (uuid params src-file out-file stdin)
   "Make Julia code that execute-s the code in SRC-FILE depending on PARAMS.
@@ -129,14 +129,15 @@ end #OB-JULIA-VTERM_END\n"))
   "Execute a block of Julia code with Babel.
 This function is called by `org-babel-execute-src-block'.
 BODY is the contents and PARAMS are header arguments of the code block."
-  (let* ((session-name (cdr (assq :session params)))
-	 (session (pcase session-name ('nil "main") ("none" nil) (_ session-name)))
+  (let* ((session (ob-julia-vterm-session))
+         (use-let (ob-julia-vterm-session-none-p))
 	 (var-lines (org-babel-variable-assignments:julia-vterm params))
 	 (result-params (cdr (assq :result-params params))))
     (with-current-buffer (julia-vterm-repl-buffer session)
       (add-hook 'julia-vterm-repl-filter-functions #'ob-julia-vterm-output-filter))
     (ob-julia-vterm-evaluate (current-buffer)
 			     session
+                             use-let
 			     (org-babel-expand-body:generic body params var-lines)
 			     params)))
 
@@ -299,9 +300,10 @@ If ASYNC is non-nil, the next evaluation will be executed asynchronously."
 	(ob-julia-vterm-process-one-evaluation-async session)
       (message "Queue empty"))))
 
-(defun ob-julia-vterm-evaluate (buf session body params)
+(defun ob-julia-vterm-evaluate (buf session use-let body params)
   "Evaluate a Julia code block in BUF in a julia-vterm REPL specified with SESSION.
-BODY contains the source code to be evaluated, and PARAMS contains header arguments."
+BODY contains the source code to be evaluated, and PARAMS contains header arguments.
+With non-nil USE-LET, the code will be executed in a `let' block"
   (let* ((uuid (org-id-uuid))
 	 (src-file (org-babel-temp-file "julia-vterm-src-"))
 	 (out-file (org-babel-temp-file "julia-vterm-out-"))
@@ -315,7 +317,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 		      tmp))))
 	 (async (not (or (eq (org-element-type (org-element-context)) 'babel-call)
 			 (member 'org-babel-ref-resolve (mapcar #'cadr (backtrace-frames)))))))
-    (with-temp-file src-file (insert (ob-julia-vterm-wrap-body session body)))
+    (with-temp-file src-file (insert (ob-julia-vterm-wrap-body use-let body)))
     (let ((elm (org-element-context))
 	  (src-block-begin (make-marker))
 	  (src-block-end (make-marker)))
@@ -343,27 +345,39 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 ;;----------------------------------------------------------------------
 ;; A helper minor mode for Org buffer with julia-vterm source code blocks.
 
+(defun ob-julia-vterm-session-context ()
+  "Return contextual information for determining which REPL to interact with.
+The returned alist has three keys, block-ses, fellow-ses, and file-ses."
+  (let* ((raw (org-element-property :parameters (org-element-at-point)))
+	 (session-specified (string-match-p ":session" (or raw "")))
+	 (src-block-info (org-babel-get-src-block-info))
+	 (block-ses (and session-specified
+                         (cdr (assoc :session (caddr src-block-info)))))
+         (fellow-ses (and (buffer-live-p julia-vterm-fellow-repl-buffer)
+                          (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer)))
+         (props (org-entry-get-with-inheritance "header-args:julia"))
+         (file-ses (cadr (member ":session" (split-string (or props ""))))))
+    (list (cons 'block-ses block-ses)
+          (cons 'fellow-ses fellow-ses)
+          (cons 'file-ses file-ses))))
+
 (defun ob-julia-vterm-session ()
-  "Return julia-vterm session name.
-The session name is determined in the following order:
-1. If the current buffer is a source code block and the block has
-   a session name, return that session name.  Exceptionally, if
-   the specified session name is `none', return `main'.
-2. If the variable `julia-vterm-fellow-repl-buffer' contains an active
-   buffer, return the session name of that buffer.
-3. If the current buffer has a header argument `:session', return
-   that session name.
-4. Otherwise, return `main'."
-  (or (when-let* ((src-block-info (org-babel-get-src-block-info))
-                  (block-ses (assoc :session (caddr src-block-info))))
-        (let ((session-name (cdr block-ses)))
-          (if (equal session-name "none") "main" session-name)))
-      (when (buffer-live-p julia-vterm-fellow-repl-buffer)
-        (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer))
-      (when-let* ((props (org-entry-get-with-inheritance "header-args:julia"))
-                  (header-args (split-string props)))
-        (cadr (member ":session" header-args)))
-      "main"))
+  "Return the julia-vterm session name based on context."
+  (let-alist (ob-julia-vterm-session-context)
+    (if (or (null .block-ses)
+            (string= .block-ses "none"))
+        (or .fellow-ses
+            (if (and .file-ses (not (string= .file-ses "none")))
+                .file-ses
+              "main"))
+      .block-ses)))
+
+(defun ob-julia-vterm-session-none-p ()
+  "Return whether the block should be executed in let block."
+  (let-alist (ob-julia-vterm-session-context)
+    (if .block-ses
+        (string= .block-ses "none")
+      (string= .file-ses "none"))))
 
 (defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
   "Return the paired REPL buffer for the current src block.
