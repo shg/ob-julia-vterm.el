@@ -55,7 +55,7 @@
    body
    (if session "" "\nend\n")))
 
-(defun ob-julia-vterm-make-str-to-run (uuid params src-file out-file)
+(defun ob-julia-vterm-make-str-to-run (uuid params src-file out-file stdin)
   "Make Julia code that execute-s the code in SRC-FILE depending on PARAMS.
 The results are saved in OUT-FILE.  UUID is a unique id assigned
 to the evaluation."
@@ -63,11 +63,10 @@ to the evaluation."
    (pcase (cdr (assq :result-type params))
      ('output "\
 #OB-JULIA-VTERM_BEGIN %s
-import Logging; let
-    out_file = \"%s\"
+import Logging; let in_file = %s, out_file = \"%s\"
     open(out_file, \"w\") do io
         logger = Logging.ConsoleLogger(io)
-        redirect_stdout(io) do
+        redirect_stdio(stdin = in_file, stdout = io) do
             try
                 include(\"%s\")
                 # %s %s
@@ -87,35 +86,41 @@ import Logging; let
 end #OB-JULIA-VTERM_END\n")
      ('value "\
 #OB-JULIA-VTERM_BEGIN %s
-import Logging; open(\"%s\", \"w\") do io
-    logger = Logging.ConsoleLogger(io)
-    try
-        result = include(\"%s\")
-        if result == \"\"
-            result = \"\n\"
-        end
-        pp = %s; nolimit = %s
-        if pp
-            if nolimit
-                Base.invokelatest(show, io, \"text/plain\", result)
-            else
-                Base.invokelatest(show, IOContext(io, :limit => true), \"text/plain\", result)
+import Logging; let in_file = %s, out_file = \"%s\"
+    open(out_file, \"w\") do io
+        logger = Logging.ConsoleLogger(io)
+        redirect_stdio(stdin = in_file) do
+            try
+                result = include(\"%s\")
+                if result == \"\"
+                    result = \"\n\"
+                end
+                pp = %s; nolimit = %s
+                if pp
+                    if nolimit
+                        Base.invokelatest(show, io, \"text/plain\", result)
+                    else
+                        Base.invokelatest(show, IOContext(io, :limit => true), \"text/plain\", result)
+                    end
+                else
+                    if nolimit
+                        Base.invokelatest(print, io, result)
+                    else
+                        Base.invokelatest(print, IOContext(io, :limit => true), result)
+                    end
+                end
+                result
+            catch e
+                msg = sprint(showerror, e, %s)
+                println(logger.stream, msg)
+                println(msg)
             end
-        else
-            if nolimit
-                Base.invokelatest(print, io, result)
-            else
-                Base.invokelatest(print, IOContext(io, :limit => true), result)
-            end
         end
-        result
-    catch e
-        msg = sprint(showerror, e, %s)
-        println(logger.stream, msg)
-        println(msg)
     end
 end #OB-JULIA-VTERM_END\n"))
-   (substring uuid 0 8) out-file src-file
+   (substring uuid 0 8)
+   (if stdin (format "\"%s\"" stdin) "nothing")
+   out-file src-file
    (if (member "pp" (cdr (assq :result-params params))) "true" "false")
    (if (member "nolimit" (cdr (assq :result-params params))) "true" "false")
    (if (not (member (cdr (assq :debug params)) '(nil "no"))) "catch_backtrace()" "")))
@@ -255,7 +260,8 @@ Return the result."
        (ob-julia-vterm-make-str-to-run .uuid
 				       .params
 				       .src-file
-				       .out-file)
+				       .out-file
+				       .stdin)
        .session)
       (ob-julia-vterm-wait-for-file-change .out-file 10 0.1)
       (with-temp-buffer
@@ -277,7 +283,8 @@ Always return nil."
 	     (ob-julia-vterm-make-str-to-run .uuid
 					     .params
 					     .src-file
-					     .out-file)
+					     .out-file
+					     .stdin)
 	     .session)))
       (if (null ob-julia-vterm-evaluation-watches)
 	  (run-at-time 0.1 nil #'ob-julia-vterm-process-evaluation-queue session))))
@@ -299,6 +306,13 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 	 (src-file (org-babel-temp-file "julia-vterm-src-"))
 	 (out-file (org-babel-temp-file "julia-vterm-out-"))
 	 (result-params (cdr (assq :result-params params)))
+	 (stdin (let ((stdin (cdr (assq :stdin params))))
+		  (when stdin
+		    (let ((tmp (org-babel-temp-file "julia-vterm-stdin-"))
+			  (res (org-babel-ref-resolve stdin)))
+		      (with-temp-file tmp
+			(insert res))
+		      tmp))))
 	 (async (not (or (eq (org-element-type (org-element-context)) 'babel-call)
 			 (member 'org-babel-ref-resolve (mapcar #'cadr (backtrace-frames)))))))
     (with-temp-file src-file (insert (ob-julia-vterm-wrap-body session body)))
@@ -314,6 +328,7 @@ BODY contains the source code to be evaluated, and PARAMS contains header argume
 			      (cons 'params params)
 			      (cons 'src-file src-file)
 			      (cons 'out-file out-file)
+			      (cons 'stdin stdin)
 			      (cons 'src-block-begin src-block-begin)
 			      (cons 'src-block-end src-block-end))))
 	(if (not async)
