@@ -397,12 +397,26 @@ With prefix ARG, prompt for session name."
   (interactive)
   (julia-vterm-send-region-or-current-line))
 
+(defun ob-julia-vterm-org-cycle-or-julia-latexsub-or-indent ()
+  "Perform latex substitution or indentation in a Julia source block.
+Otherwise, call `org-cycle'."
+  (interactive)
+  (if (org-in-src-block-p 1)
+      (let ((lang (nth 0 (org-babel-get-src-block-info))))
+        (if (string= lang "julia")
+            (save-restriction
+              (org-narrow-to-block)
+              (call-interactively #'julia-latexsub-or-indent))
+          (call-interactively #'org-cycle)))
+    (call-interactively #'org-cycle)))
+
 (defvar ob-julia-vterm-helper-mode-map
   (let ((map (copy-keymap julia-vterm-mode-map)))
     (define-key map (kbd "C-c C-z") #'ob-julia-vterm-switch-to-repl-buffer)
     (define-key map (kbd "C-<return>") #'ob-julia-vterm-send-region-or-current-line)
     (define-key map (kbd "C-c C-b") #'org-babel-execute-buffer)
     (define-key map (kbd "C-c C-i") nil t)
+    (define-key map (kbd "TAB") #'ob-julia-vterm-org-cycle-or-julia-latexsub-or-indent)
     map))
 
 ;;;###autoload
