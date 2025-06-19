@@ -71,7 +71,13 @@ import Logging; let in_file = %s, out_file = \"%s\"
                 include(\"%s\")
                 # %s %s
             catch e
-                showerror(logger.stream, e, %s)
+                msg = if %s
+                    bt = catch_backtrace()
+                    i = findfirst(ip -> any(fr.func == Symbol(\"top-level scope\") for fr in StackTraces.lookup(ip)), bt)
+                    showerror(logger.stream, e, bt[1:i])
+                else
+                    showerror(logger.stream, e)
+                end
             end
         end
     end
@@ -111,7 +117,13 @@ import Logging; let in_file = %s, out_file = \"%s\"
                 end
                 result
             catch e
-                msg = sprint(showerror, e, %s)
+                msg = if %s
+                    bt = catch_backtrace()
+                    i = findfirst(ip -> any(fr.func == Symbol(\"top-level scope\") for fr in StackTraces.lookup(ip)), bt)
+                    sprint(showerror, e, bt[1:i])
+                else
+                    msg = sprint(showerror, e)
+                end
                 println(logger.stream, msg)
                 println(msg)
             end
@@ -123,7 +135,7 @@ end #OB-JULIA-VTERM_END\n"))
    out-file src-file
    (if (member "pp" (cdr (assq :result-params params))) "true" "false")
    (if (member "nolimit" (cdr (assq :result-params params))) "true" "false")
-   (if (not (member (cdr (assq :debug params)) '(nil "no"))) "catch_backtrace()" "")))
+   (if (not (member (cdr (assq :debug params)) '(nil "no"))) "true" "false")))
 
 (defun org-babel-execute:julia-vterm (body params)
   "Execute a block of Julia code with Babel.
