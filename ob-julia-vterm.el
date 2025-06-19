@@ -73,7 +73,7 @@ import Logging; let in_file = %s, out_file = \"%s\"
             catch e
                 msg = if %s
                     bt = catch_backtrace()
-                    i = findfirst(ip -> any(fr.func==Symbol(\"top-level scope\") for fr in StackTraces.lookup(ip)), bt)
+                    i = findfirst(ip -> any(fr.func == Symbol(\"top-level scope\") for fr in StackTraces.lookup(ip)), bt)
                     showerror(logger.stream, e, bt[1:i])
                 else
                     showerror(logger.stream, e)
@@ -119,7 +119,7 @@ import Logging; let in_file = %s, out_file = \"%s\"
             catch e
                 msg = if %s
                     bt = catch_backtrace()
-                    i = findfirst(ip -> any(fr.func==Symbol(\"top-level scope\") for fr in StackTraces.lookup(ip)), bt)
+                    i = findfirst(ip -> any(fr.func == Symbol(\"top-level scope\") for fr in StackTraces.lookup(ip)), bt)
                     sprint(showerror, e, bt[1:i])
                 else
                     msg = sprint(showerror, e)
