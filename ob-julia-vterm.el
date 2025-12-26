@@ -409,6 +409,15 @@ With prefix ARG, prompt for session name."
   (interactive)
   (julia-vterm-send-region-or-current-line))
 
+(defun ob-julia-vterm-helper-handle-tab ()
+  "Perform latex substitution or indentation in a Julia source block."
+  (interactive)
+  (if (and (org-in-src-block-p t)
+           (string= (car (org-babel-get-src-block-info)) "julia"))
+      (save-restriction
+        (org-narrow-to-block)
+        (call-interactively #'julia-latexsub-or-indent))))
+
 (defvar ob-julia-vterm-helper-mode-map
   (let ((map (copy-keymap julia-vterm-mode-map)))
     (define-key map (kbd "C-c C-z") #'ob-julia-vterm-switch-to-repl-buffer)
@@ -424,7 +433,10 @@ With prefix ARG, prompt for session name."
   :lighter " ⁂"
   :keymap ob-julia-vterm-helper-mode-map
   (unless (eq major-mode 'org-mode)
-    (user-error "Cannot use `ob-julia-vterm-helper-mode' outside Org mode")))
+    (user-error "Cannot use `ob-julia-vterm-helper-mode' outside Org mode"))
+  (if ob-julia-vterm-helper-mode
+      (add-hook 'org-tab-first-hook #'ob-julia-vterm-helper-handle-tab 0 t)
+    (remove-hook 'org-tab-first-hook #'ob-julia-vterm-helper-handle-tab t)))
 
 (unless (fboundp 'julia-helper-mode)
   (defalias 'julia-helper-mode 'ob-julia-vterm-helper-mode))
