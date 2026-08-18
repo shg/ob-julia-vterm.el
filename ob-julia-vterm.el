@@ -48,6 +48,20 @@
 (require 'filenotify)
 (require 'julia-vterm)
 
+(defgroup ob-julia-vterm nil
+  "Org-Babel support for Julia using julia-vterm."
+  :group 'org-babel)
+
+(defcustom ob-julia-vterm-helper-buffer-wide-repl-keys nil
+  "Non-nil means REPL-related helper keys are active throughout Org buffers.
+When nil, `C-c C-z' and `C-c C-d' are active only in Julia source
+blocks handled by this package.  When non-nil, they are active
+throughout Org buffers where `ob-julia-vterm-helper-mode' is enabled."
+  :type 'boolean
+  :group 'ob-julia-vterm)
+
+(make-variable-buffer-local 'ob-julia-vterm-helper-buffer-wide-repl-keys)
+
 (defun ob-julia-vterm-wrap-body (use-let body)
   "Make Julia code that execute-s BODY and obtains the results, depending on USE-LET."
   (concat
@@ -435,6 +449,17 @@ When INSIDE is non-nil, return t only when point is inside the source block."
              (and (string= lang "julia")
                   (ob-julia-vterm-helper-handles-julia-p))))))
 
+(defun ob-julia-vterm-helper-filter-repl-binding (binding)
+  "Return BINDING according to helper-mode REPL key scope."
+  (and (or ob-julia-vterm-helper-buffer-wide-repl-keys
+           (ob-julia-vterm-helper-in-julia-src-block-p))
+       binding))
+
+(defun ob-julia-vterm-helper-repl-conditional-binding (command)
+  "Return a conditional key binding for REPL-related helper COMMAND."
+  (list 'menu-item "Julia REPL command" command
+        :filter #'ob-julia-vterm-helper-filter-repl-binding))
+
 (defun ob-julia-vterm-helper-filter-julia-body-binding (binding)
   "Return BINDING only inside a Julia source block body."
   (and (ob-julia-vterm-helper-in-julia-src-block-p t) binding))
@@ -469,7 +494,12 @@ When INSIDE is non-nil, return t only when point is inside the source block."
 
 (defvar ob-julia-vterm-helper-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-z") #'ob-julia-vterm-switch-to-repl-buffer)
+    (define-key map (kbd "C-c C-z")
+                (ob-julia-vterm-helper-repl-conditional-binding
+                 #'ob-julia-vterm-switch-to-repl-buffer))
+    (define-key map (kbd "C-c C-d")
+                (ob-julia-vterm-helper-repl-conditional-binding
+                 #'julia-vterm-send-cd-to-buffer-directory))
     (define-key map (kbd "C-<return>")
                 (ob-julia-vterm-helper-body-conditional-binding
                  #'ob-julia-vterm-send-region-or-current-line))
