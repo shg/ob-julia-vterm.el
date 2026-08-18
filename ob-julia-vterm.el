@@ -435,18 +435,50 @@ When INSIDE is non-nil, return t only when point is inside the source block."
              (and (string= lang "julia")
                   (ob-julia-vterm-helper-handles-julia-p))))))
 
+(defun ob-julia-vterm-helper-filter-julia-body-binding (binding)
+  "Return BINDING only inside a Julia source block body."
+  (and (ob-julia-vterm-helper-in-julia-src-block-p t) binding))
+
+(defun ob-julia-vterm-helper-body-conditional-binding (command)
+  "Return a Julia-source-block-body-only key binding for COMMAND."
+  (list 'menu-item "Julia source body command" command
+        :filter #'ob-julia-vterm-helper-filter-julia-body-binding))
+
 (defun ob-julia-vterm-helper-handle-tab ()
   "Perform latex substitution or indentation in a Julia source block."
   (interactive)
-  (if (ob-julia-vterm-helper-in-julia-src-block-p t)
-      (save-restriction
-        (org-narrow-to-block)
-        (call-interactively #'julia-latexsub-or-indent))))
+  (when (ob-julia-vterm-helper-in-julia-src-block-p t)
+    (save-restriction
+      (org-narrow-to-block)
+      (call-interactively #'julia-latexsub-or-indent))
+    t))
+
+(defun ob-julia-vterm-helper-handle-return ()
+  "Run RET as if typing in the Julia source edit buffer."
+  (interactive)
+  (org-babel-do-key-sequence-in-edit-buffer (kbd "RET")))
+
+(defun ob-julia-vterm-helper-handle-star (n)
+  "Insert N literal * characters using `self-insert-command'."
+  (interactive "p")
+  (self-insert-command n))
+
+(put 'ob-julia-vterm-helper-handle-star 'delete-selection t)
+(put 'ob-julia-vterm-helper-handle-star 'flyspell-delayed t)
+(put 'ob-julia-vterm-helper-handle-star 'pabbrev-expand-after-command t)
 
 (defvar ob-julia-vterm-helper-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-z") #'ob-julia-vterm-switch-to-repl-buffer)
-    (define-key map (kbd "C-<return>") #'ob-julia-vterm-send-region-or-current-line)
+    (define-key map (kbd "C-<return>")
+                (ob-julia-vterm-helper-body-conditional-binding
+                 #'ob-julia-vterm-send-region-or-current-line))
+    (define-key map (kbd "RET")
+                (ob-julia-vterm-helper-body-conditional-binding
+                 #'ob-julia-vterm-helper-handle-return))
+    (define-key map (kbd "*")
+                (ob-julia-vterm-helper-body-conditional-binding
+                 #'ob-julia-vterm-helper-handle-star))
     map))
 
 ;;;###autoload
