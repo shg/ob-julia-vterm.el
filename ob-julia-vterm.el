@@ -420,11 +420,25 @@ With prefix ARG, prompt for session name."
   (interactive)
   (julia-vterm-send-region-or-current-line))
 
+(defun ob-julia-vterm-helper-handles-julia-p ()
+  "Return non-nil if this package handles `julia' source blocks."
+  (and (fboundp 'org-babel-execute:julia)
+       (eq (indirect-function 'org-babel-execute:julia)
+           (indirect-function 'org-babel-execute:julia-vterm))))
+
+(defun ob-julia-vterm-helper-in-julia-src-block-p (&optional inside)
+  "Return non-nil if point is in a Julia src block handled by this package.
+When INSIDE is non-nil, return t only when point is inside the source block."
+  (and (org-in-src-block-p inside)
+       (let ((lang (org-element-property :language (org-element-at-point))))
+         (or (string= lang "julia-vterm")
+             (and (string= lang "julia")
+                  (ob-julia-vterm-helper-handles-julia-p))))))
+
 (defun ob-julia-vterm-helper-handle-tab ()
   "Perform latex substitution or indentation in a Julia source block."
   (interactive)
-  (if (and (org-in-src-block-p t)
-           (string= (car (org-babel-get-src-block-info)) "julia"))
+  (if (ob-julia-vterm-helper-in-julia-src-block-p t)
       (save-restriction
         (org-narrow-to-block)
         (call-interactively #'julia-latexsub-or-indent))))
