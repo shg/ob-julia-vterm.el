@@ -444,11 +444,9 @@ When INSIDE is non-nil, return t only when point is inside the source block."
         (call-interactively #'julia-latexsub-or-indent))))
 
 (defvar ob-julia-vterm-helper-mode-map
-  (let ((map (copy-keymap julia-vterm-mode-map)))
+  (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-z") #'ob-julia-vterm-switch-to-repl-buffer)
     (define-key map (kbd "C-<return>") #'ob-julia-vterm-send-region-or-current-line)
-    (define-key map (kbd "C-c C-b") #'org-babel-execute-buffer)
-    (define-key map (kbd "C-c C-i") nil t)
     map))
 
 ;;;###autoload
