@@ -449,6 +449,76 @@ When INSIDE is non-nil, return t only when point is inside the source block."
              (and (string= lang "julia")
                   (ob-julia-vterm-helper-handles-julia-p))))))
 
+(defun ob-julia-vterm-helper-fellow-session ()
+  "Return the session name of the fellow REPL, or nil."
+  (and (buffer-live-p julia-vterm-fellow-repl-buffer)
+       (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer)))
+
+(defun ob-julia-vterm-helper-header-args (lang)
+  "Return inherited and file-wide header arguments for LANG."
+  (let ((property (concat "header-args:" lang)))
+    (or (org-entry-get-with-inheritance property)
+        (catch 'value
+          (dolist (item (cdr (assoc "PROPERTY"
+                                    (org-collect-keywords '("PROPERTY")))))
+            (when (string-match
+                   (concat "\\`" (regexp-quote property) "[ \t]+\\(.*\\)")
+                   item)
+              (throw 'value (match-string 1 item))))))))
+
+(defun ob-julia-vterm-helper-header-session (&optional lang)
+  "Return inherited header-args session for LANG, or nil.
+When LANG is nil, try `julia-vterm' and then `julia' if this package
+handles `julia' source blocks.  Ignore a session value of \"none\"."
+  (let* ((langs (cond
+                 ((string= lang "julia-vterm") '("julia-vterm"))
+                 ((and (string= lang "julia")
+                       (ob-julia-vterm-helper-handles-julia-p))
+                  '("julia"))
+                 ((null lang)
+                  (append '("julia-vterm")
+                          (and (ob-julia-vterm-helper-handles-julia-p)
+                               '("julia"))))))
+         (session
+          (catch 'session
+            (dolist (item langs)
+              (let* ((props (ob-julia-vterm-helper-header-args item))
+                     (value (cdr (assq :session
+                                       (org-babel-parse-header-arguments
+                                        (or props "") t)))))
+                (when (and value (not (string= value "none")))
+                  (throw 'session value)))))))
+    session))
+
+(defun ob-julia-vterm-helper-block-session ()
+  "Return the source block's explicit session name, or nil.
+Ignore inherited header args and a session value of \"none\"."
+  (when (ob-julia-vterm-helper-in-julia-src-block-p)
+    (let* ((raw (org-element-property :parameters (org-element-at-point)))
+           (session-specified (string-match-p ":session" (or raw "")))
+           (session (and session-specified
+                         (cdr (assq :session
+                                    (org-babel-parse-header-arguments
+                                     (or raw "") t))))))
+      (and session (not (string= session "none")) session))))
+
+(defun ob-julia-vterm-helper-repl-session ()
+  "Return the session name for helper-mode REPL switching."
+  (or (ob-julia-vterm-helper-block-session)
+      (ob-julia-vterm-helper-header-session
+       (and (ob-julia-vterm-helper-in-julia-src-block-p)
+            (org-element-property :language (org-element-at-point))))
+      (ob-julia-vterm-helper-fellow-session)
+      "main"))
+
+(defun ob-julia-vterm-helper-switch-to-repl-buffer (&optional arg)
+  "Switch to the helper-mode REPL buffer.
+With prefix ARG, prompt for session name."
+  (interactive "P")
+  (let ((session-name (cond ((null arg) (ob-julia-vterm-helper-repl-session))
+                            (t (julia-vterm-ask-session)))))
+    (julia-vterm-switch-to (julia-vterm-repl-buffer session-name))))
+
 (defun ob-julia-vterm-helper-filter-repl-binding (binding)
   "Return BINDING according to helper-mode REPL key scope."
   (and (or ob-julia-vterm-helper-buffer-wide-repl-keys
@@ -496,7 +566,7 @@ When INSIDE is non-nil, return t only when point is inside the source block."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-z")
                 (ob-julia-vterm-helper-repl-conditional-binding
-                 #'ob-julia-vterm-switch-to-repl-buffer))
+                 #'ob-julia-vterm-helper-switch-to-repl-buffer))
     (define-key map (kbd "C-c C-d")
                 (ob-julia-vterm-helper-repl-conditional-binding
                  #'julia-vterm-send-cd-to-buffer-directory))
