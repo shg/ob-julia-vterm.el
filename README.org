@@ -72,8 +72,8 @@ The following keys are active in ~julia-vterm~ source block bodies, and in ~juli
 
 The following REPL-related keys are active in ~julia-vterm~ source blocks, and in ~julia~ source blocks when the aliases above are defined.
 
-- ~C-c C-z~ switches to the associated Julia REPL.
-- ~C-c C-d~ changes the Julia REPL working directory to the Org buffer directory.
+- ~C-c C-z~ switches to the Julia REPL selected for the current context.
+- ~C-c C-d~ changes the selected Julia REPL's working directory to the directory containing the Org file.
 
 In regular Org text and source blocks for other languages, the original Org and minor-mode key bindings remain active.
 
