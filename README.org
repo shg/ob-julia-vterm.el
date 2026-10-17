@@ -55,6 +55,32 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
   - As an exception, if you use babel's ~:var~ reference from another block, the referenced ~julia-vterm~ block will be executed synchronously.
   - At this time, it is not possible to explicitly specify synchronous execution.
 
+*** Helper mode
+
+Enable ~ob-julia-vterm-helper-mode~ in Org buffers to use Julia editing and REPL commands directly in source blocks.
+
+#+BEGIN_SRC emacs-lisp
+(add-hook 'org-mode-hook #'ob-julia-vterm-helper-mode)
+#+END_SRC
+
+The following keys are active in ~julia-vterm~ source block bodies, and in ~julia~ source block bodies when the aliases above are defined.
+
+- ~TAB~ performs Julia LaTeX substitution or indentation.
+- ~RET~ runs the return key binding from the Julia source edit buffer.
+- ~*~ inserts a literal asterisk using the standard self-insert command.
+- ~C-<return>~ sends the active region or current line to the Julia REPL.
+
+The following REPL-related keys are active in ~julia-vterm~ source blocks, and in ~julia~ source blocks when the aliases above are defined.
+
+- ~C-c C-z~ switches to the associated Julia REPL.
+- ~C-c C-d~ changes the Julia REPL working directory to the Org buffer directory.
+
+In regular Org text and source blocks for other languages, the original Org and minor-mode key bindings remain active.
+
+Set ~ob-julia-vterm-helper-buffer-wide-repl-keys~ to non-nil to make ~C-c C-z~ and ~C-c C-d~ active throughout Org buffers.  This overrides Org's standard bindings for these keys.
+
+Use ~setq-default~ to enable this behavior by default for new Org buffers.
+
 *** Examples
 
 #+BEGIN_SRC org
