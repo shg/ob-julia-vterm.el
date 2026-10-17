@@ -134,12 +134,12 @@ x
 #+END_SRC
 
 #+BEGIN_SRC org
-,#+BEGIN_SRC julia :results file graphics :file plot.png :output-dir figs
+,#+BEGIN_SRC julia :results value file
 using Plots
 scatter(rand(100), rand(100))
-savefig("figs/plot.png")
+savefig("plot.pdf")
 ,#+END_SRC
 
 ,#+RESULTS:
-[[file:figs/plot.png]]
+[[file:plot.pdf]]
 #+END_SRC
