@@ -494,12 +494,14 @@ handles `julia' source blocks.  Ignore a session value of \"none\"."
   "Return the source block's explicit session name, or nil.
 Ignore inherited header args and a session value of \"none\"."
   (when (ob-julia-vterm-helper-in-julia-src-block-p)
-    (let* ((raw (org-element-property :parameters (org-element-at-point)))
-           (session-specified (string-match-p ":session" (or raw "")))
-           (session (and session-specified
-                         (cdr (assq :session
-                                    (org-babel-parse-header-arguments
-                                     (or raw "") t))))))
+    (let* ((block (org-element-at-point))
+           (headers (cons (org-element-property :parameters block)
+                          (org-element-property :header block)))
+           (params (apply #'org-babel-merge-params
+                          (mapcar (lambda (header)
+                                    (org-babel-parse-header-arguments header t))
+                                  headers)))
+           (session (cdr (assq :session params))))
       (and session (not (string= session "none")) session))))
 
 (defun ob-julia-vterm-helper-repl-session ()
