@@ -519,6 +519,13 @@ With prefix ARG, prompt for session name."
                             (t (julia-vterm-ask-session)))))
     (julia-vterm-switch-to (julia-vterm-repl-buffer session-name))))
 
+(defun ob-julia-vterm-helper-send-cd-to-buffer-directory ()
+  "Change the helper-selected REPL's working directory to the Org buffer directory."
+  (interactive)
+  (let ((julia-vterm-fellow-repl-buffer
+         (julia-vterm-repl-buffer (ob-julia-vterm-helper-repl-session))))
+    (julia-vterm-send-cd-to-buffer-directory)))
+
 (defun ob-julia-vterm-helper-filter-repl-binding (binding)
   "Return BINDING according to helper-mode REPL key scope."
   (and (or ob-julia-vterm-helper-buffer-wide-repl-keys
@@ -569,7 +576,7 @@ With prefix ARG, prompt for session name."
                  #'ob-julia-vterm-helper-switch-to-repl-buffer))
     (define-key map (kbd "C-c C-d")
                 (ob-julia-vterm-helper-repl-conditional-binding
-                 #'julia-vterm-send-cd-to-buffer-directory))
+                 #'ob-julia-vterm-helper-send-cd-to-buffer-directory))
     (define-key map (kbd "C-<return>")
                 (ob-julia-vterm-helper-body-conditional-binding
                  #'ob-julia-vterm-send-region-or-current-line))
