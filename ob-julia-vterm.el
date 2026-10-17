@@ -225,7 +225,13 @@ BODY is the contents and PARAMS are header arguments of the code block."
 				      (insert-file-contents .out-file)
 				      (replace-regexp-in-string "\n\\'" "" (buffer-string))))
 			    (result-params (cdr (assq :result-params .params))))
-			(cond ((member "file" result-params)
+			(cond ((and (member "file" result-params)
+				    (cdr (assq :file .params)))
+			       (org-redisplay-inline-images))
+			      ((member "file" result-params)
+			       (org-babel-insert-result
+				result result-params
+				(org-babel-get-src-block-info 'light))
 			       (org-redisplay-inline-images))
 			      ((not (member "none" result-params))
 			       (org-babel-insert-result
@@ -353,7 +359,7 @@ With non-nil USE-LET, the code will be executed in a `let' block"
 			      (cons 'async async)
 			      (cons 'buf buf)
 			      (cons 'session session)
-			      (cons 'params params)
+			      (cons 'params (copy-tree params))
 			      (cons 'src-file src-file)
 			      (cons 'out-file out-file)
 			      (cons 'stdin stdin)
@@ -363,6 +369,11 @@ With non-nil USE-LET, the code will be executed in a `let' block"
 	    (ob-julia-vterm-process-one-evaluation-sync session evaluation)
 	  (ob-julia-vterm-add-evaluation-to-evaluation-queue session evaluation)
 	  (ob-julia-vterm-process-evaluation-queue session)
+	  ;; Babel uses this same list to insert the immediate return value.
+	  ;; Keep the original file result parameters in the queued evaluation.
+	  (when (and (member "file" result-params)
+		     (not (cdr (assq :file params))))
+	    (setcar (member "file" result-params) "verbatim"))
 	  (concat "Executing... " (substring uuid 0 8)))))))
 
 (add-to-list 'org-src-lang-modes '("julia-vterm" . julia))
