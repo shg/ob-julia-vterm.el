@@ -454,9 +454,10 @@ When INSIDE is non-nil, return t only when point is inside the source block."
   (and (buffer-live-p julia-vterm-fellow-repl-buffer)
        (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer)))
 
-(defun ob-julia-vterm-helper-header-args (lang)
-  "Return inherited and file-wide header arguments for LANG."
-  (let ((property (concat "header-args:" lang)))
+(defun ob-julia-vterm-helper-header-args (&optional lang)
+  "Return inherited and file-wide header arguments for LANG.
+When LANG is nil, return language-independent header arguments."
+  (let ((property (if lang (concat "header-args:" lang) "header-args")))
     (or (org-entry-get-with-inheritance property)
         (catch 'value
           (dolist (item (cdr (assoc "PROPERTY"
@@ -469,7 +470,8 @@ When INSIDE is non-nil, return t only when point is inside the source block."
 (defun ob-julia-vterm-helper-header-session (&optional lang)
   "Return inherited header-args session for LANG, or nil.
 When LANG is nil, try `julia-vterm' and then `julia' if this package
-handles `julia' source blocks.  Ignore a session value of \"none\"."
+handles `julia' source blocks.  Language-specific arguments override
+language-independent arguments.  Ignore a session value of \"none\"."
   (let* ((langs (cond
                  ((string= lang "julia-vterm") '("julia-vterm"))
                  ((and (string= lang "julia")
@@ -479,13 +481,17 @@ handles `julia' source blocks.  Ignore a session value of \"none\"."
                   (append '("julia-vterm")
                           (and (ob-julia-vterm-helper-handles-julia-p)
                                '("julia"))))))
+         (common (org-babel-parse-header-arguments
+                  (or (ob-julia-vterm-helper-header-args) "") t))
          (session
           (catch 'session
             (dolist (item langs)
               (let* ((props (ob-julia-vterm-helper-header-args item))
                      (value (cdr (assq :session
-                                       (org-babel-parse-header-arguments
-                                        (or props "") t)))))
+                                       (org-babel-merge-params
+                                        common
+                                        (org-babel-parse-header-arguments
+                                         (or props "") t))))))
                 (when (and value (not (string= value "none")))
                   (throw 'session value)))))))
     session))
