@@ -53,6 +53,7 @@ By default, you need to specify ~julia-vterm~ as the language name for source bl
   - Another code block or a result of a code block can be referred to and used as the argument.
 - Execution of julia-vterm code blocks is asynchronous by default and does not block Emacs.
   - As an exception, if you use babel's ~:var~ reference from another block, the referenced ~julia-vterm~ block will be executed synchronously.
+  - Also, code blocks executed during export when ~:eval never-export~ is not specified will be executed synchronously so that the exported document contains their completed results.
   - At this time, it is not possible to explicitly specify synchronous execution.
 
 *** Helper mode

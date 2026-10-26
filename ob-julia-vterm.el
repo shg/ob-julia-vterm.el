@@ -347,7 +347,8 @@ With non-nil USE-LET, the code will be executed in a `let' block"
 		      (with-temp-file tmp
 			(insert res))
 		      tmp))))
-	 (async (not (or (eq (org-element-type (org-element-context)) 'babel-call)
+	 (async (not (or (bound-and-true-p org-babel-exp-reference-buffer)
+			 (eq (org-element-type (org-element-context)) 'babel-call)
 			 (member 'org-babel-ref-resolve (mapcar #'cadr (backtrace-frames)))))))
     (with-temp-file src-file (insert (ob-julia-vterm-wrap-body use-let body)))
     (let ((elm (org-element-context))
