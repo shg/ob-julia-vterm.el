@@ -78,7 +78,7 @@ to the evaluation."
      ('output "\
 #OB-JULIA-VTERM_BEGIN %s
 import Logging; let in_file = %s, out_file = \"%s\"
-    open(out_file, \"w\") do io
+    open(out_file, \"a\") do io
         logger = Logging.ConsoleLogger(io)
         redirect_stdio(stdin = in_file, stdout = io) do
             try
@@ -107,7 +107,7 @@ end #OB-JULIA-VTERM_END\n")
      ('value "\
 #OB-JULIA-VTERM_BEGIN %s
 import Logging; let in_file = %s, out_file = \"%s\"
-    open(out_file, \"w\") do io
+    open(out_file, \"a\") do io
         logger = Logging.ConsoleLogger(io)
         redirect_stdio(stdin = in_file) do
             try
