@@ -383,50 +383,14 @@ With non-nil USE-LET, the code will be executed in a `let' block"
 ;;----------------------------------------------------------------------
 ;; A helper minor mode for Org buffer with julia-vterm source code blocks.
 
-(defun ob-julia-vterm-session-context ()
-  "Return contextual information for determining which REPL to interact with.
-The returned alist has three keys, block-ses, fellow-ses, and file-ses."
-  (let* ((raw (org-element-property :parameters (org-element-at-point)))
-	 (session-specified (string-match-p ":session" (or raw "")))
-	 (src-block-info (org-babel-get-src-block-info))
-	 (lang (car src-block-info))
-	 (block-ses (and session-specified
-                         (cdr (assoc :session (caddr src-block-info)))))
-         (fellow-ses (and (buffer-live-p julia-vterm-fellow-repl-buffer)
-                          (julia-vterm-repl-session-name julia-vterm-fellow-repl-buffer)))
-         (props (cond
-                 ((and (stringp lang)
-                       (string= lang "julia-vterm"))
-                  (org-entry-get-with-inheritance "header-args:julia-vterm"))
-                 ((and (stringp lang)
-                       (string= lang "julia")
-                       (fboundp 'org-babel-execute:julia)
-                       (eq (symbol-function 'org-babel-execute:julia)
-                           'org-babel-execute:julia-vterm))
-                  (org-entry-get-with-inheritance "header-args:julia"))
-                 (t nil)))
-         (file-ses (cadr (member ":session" (split-string (or props ""))))))
-    (list (cons 'block-ses block-ses)
-          (cons 'fellow-ses fellow-ses)
-          (cons 'file-ses file-ses))))
 
 (defun ob-julia-vterm-session ()
   "Return the julia-vterm session name based on context."
-  (let-alist (ob-julia-vterm-session-context)
-    (if (or (null .block-ses)
-            (string= .block-ses "none"))
-        (or .fellow-ses
-            (if (and .file-ses (not (string= .file-ses "none")))
-                .file-ses
-              "main"))
-      .block-ses)))
+  (cdr (assq :session (caddr (org-babel-get-src-block-info)))))
 
 (defun ob-julia-vterm-session-none-p ()
   "Return whether the block should be executed in let block."
-  (let-alist (ob-julia-vterm-session-context)
-    (if .block-ses
-        (string= .block-ses "none")
-      (string= .file-ses "none"))))
+  (string= (ob-julia-vterm-session) "none"))
 
 (defun ob-julia-vterm-fellow-repl-buffer (&optional session-name)
   "Return the paired REPL buffer for the current src block.
